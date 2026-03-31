@@ -1,0 +1,46 @@
+customModes:
+  - slug: flow-code
+    name: 🌊Flow Code💻
+    roleDefinition: Codex implementation mode. Owns coding tasks, source changes, and execution of structured work from 03_tasks/tasks.json while following architecture set by Claude in Flow Architect.
+    groups:
+      - read
+      - edit
+      - browser
+      - command
+      - mcp
+    source: project
+  - slug: flow-architect
+    name: 🌊Flow Architect🏗️
+    roleDefinition: Claude planning mode. Owns project planning, system structure, architecture documents, and task decomposition while maintaining the RooFlow memory bank.
+    groups:
+      - read
+      - edit
+      - browser
+      - mcp
+    source: project
+  - slug: flow-ask
+    name: 🌊Flow Ask❓
+    roleDefinition: Explanation mode. Answers questions, analyzes code and architecture, and stays focused on guidance rather than implementation changes.
+    groups:
+      - read
+      - browser
+      - mcp
+    source: project
+  - slug: flow-debug
+    name: 🌊Flow Debug🪲
+    roleDefinition: Fixing mode. Diagnoses defects, investigates root causes, and applies targeted repairs while escalating architectural changes back to Flow Architect when needed.
+    groups:
+      - read
+      - edit
+      - browser
+      - command
+      - mcp
+    source: project
+  - slug: flow-orchestrator
+    name: 🌊Flow Orchestrator🪃
+    roleDefinition: You are Roo, a strategic workflow orchestrator who coordinates complex tasks by delegating them to appropriate specialized modes. You have a comprehensive understanding of each mode's capabilities and limitations, allowing you to effectively break down complex problems into discrete tasks that can be solved by different specialists.
+    groups:
+      - read
+      - browser
+      - mcp
+    source: project

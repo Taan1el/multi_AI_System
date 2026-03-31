@@ -1,0 +1,21 @@
+{
+  "name": "multi_ai_system",
+  "version": "1.0.0",
+  "description": "RooFlow prompt library test app for Claude and Codex collaboration.",
+  "main": "04_code/server.js",
+  "scripts": {
+    "dev": "node --watch 04_code/server.js",
+    "start": "node 04_code/server.js",
+    "test": "echo \"No automated tests configured yet\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "rooflow": "^1.2.0"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}

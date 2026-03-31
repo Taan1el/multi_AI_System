@@ -1,0 +1,40 @@
+{
+  "prompts": [
+    {
+      "id": "4e246a16-cc14-4b33-b250-4ce6fcc55003",
+      "title": "Implementation Sprint Prompt",
+      "content": "Implement the next tasks from the backlog. Keep changes organized, explain assumptions briefly, and validate the behavior before wrapping up.",
+      "notes": "Useful handoff prompt for Codex or Flow Code.",
+      "tags": [
+        "coding",
+        "execution"
+      ],
+      "createdAt": "2026-03-31T08:10:00.000Z",
+      "updatedAt": "2026-03-31T08:10:00.000Z"
+    },
+    {
+      "id": "4e246a16-cc14-4b33-b250-4ce6fcc55002",
+      "title": "Bug Reproduction Brief",
+      "content": "Investigate this issue step by step. Reproduce it, isolate the likely cause, explain the failure clearly, and propose the smallest safe fix.",
+      "notes": "Useful for Flow Debug sessions.",
+      "tags": [
+        "debug",
+        "qa"
+      ],
+      "createdAt": "2026-03-31T08:05:00.000Z",
+      "updatedAt": "2026-03-31T08:05:00.000Z"
+    },
+    {
+      "id": "4e246a16-cc14-4b33-b250-4ce6fcc55001",
+      "title": "Architecture Outline",
+      "content": "Design the system structure for this feature. Include components, data flow, risks, and the smallest useful task breakdown for implementation.",
+      "notes": "Good starting point for Claude or Flow Architect.",
+      "tags": [
+        "architecture",
+        "planning"
+      ],
+      "createdAt": "2026-03-31T08:00:00.000Z",
+      "updatedAt": "2026-03-31T08:00:00.000Z"
+    }
+  ]
+}

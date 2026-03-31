@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Prompt Library</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="masthead fade-in">
+        <div class="masthead-copy">
+          <p class="eyebrow">RooFlow trial build</p>
+          <h1>Prompt Library</h1>
+          <p class="lede">
+            A local workspace for reusable AI prompts with fast tagging, live search, and a focused editor.
+          </p>
+        </div>
+        <div class="masthead-meta">
+          <span>Node.js + Express</span>
+          <span>JSON persistence</span>
+          <span>Claude + Codex workflow</span>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="library-panel slide-up">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Library</p>
+              <h2 id="promptCount">0 prompts</h2>
+            </div>
+            <button id="newPromptButton" class="primary-button" type="button">New prompt</button>
+          </div>
+
+          <label class="field">
+            <span>Search</span>
+            <input
+              id="searchInput"
+              type="search"
+              placeholder="Search titles, tags, and prompt text"
+              autocomplete="off"
+            />
+          </label>
+
+          <div class="tag-area">
+            <div class="tag-area-header">
+              <span>Filter by tag</span>
+              <button id="clearFiltersButton" class="ghost-button" type="button">Clear</button>
+            </div>
+            <div id="tagFilters" class="tag-filters"></div>
+          </div>
+
+          <div id="promptList" class="prompt-list" aria-live="polite"></div>
+        </section>
+
+        <section class="editor-panel slide-up">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Editor</p>
+              <h2 id="editorHeading">Create a new prompt</h2>
+            </div>
+            <button id="deleteButton" class="ghost-button danger" type="button" disabled>
+              Delete
+            </button>
+          </div>
+
+          <form id="promptForm" class="editor-form">
+            <label class="field">
+              <span>Title</span>
+              <input id="titleInput" name="title" type="text" maxlength="120" required />
+            </label>
+
+            <label class="field">
+              <span>Tags</span>
+              <input
+                id="tagsInput"
+                name="tags"
+                type="text"
+                placeholder="architecture, debug, release"
+              />
+            </label>
+
+            <label class="field">
+              <span>Prompt text</span>
+              <textarea id="contentInput" name="content" rows="10" required></textarea>
+            </label>
+
+            <label class="field">
+              <span>Notes</span>
+              <textarea
+                id="notesInput"
+                name="notes"
+                rows="4"
+                placeholder="Optional notes for when or why to use this prompt"
+              ></textarea>
+            </label>
+
+            <div class="form-actions">
+              <button id="saveButton" class="primary-button" type="submit">Save prompt</button>
+              <button id="resetButton" class="ghost-button" type="button">Reset</button>
+            </div>
+          </form>
+
+          <div class="detail-strip">
+            <div>
+              <span class="detail-label">Selection</span>
+              <p id="selectionMeta">New draft</p>
+            </div>
+            <div>
+              <span class="detail-label">Updated</span>
+              <p id="updatedMeta">Not saved yet</p>
+            </div>
+            <div>
+              <span class="detail-label">Status</span>
+              <p id="statusMessage">Ready</p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="promptItemTemplate">
+      <button class="prompt-item" type="button">
+        <div class="prompt-item-top">
+          <span class="prompt-title"></span>
+          <span class="prompt-date"></span>
+        </div>
+        <p class="prompt-preview"></p>
+        <div class="prompt-tags"></div>
+      </button>
+    </template>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
