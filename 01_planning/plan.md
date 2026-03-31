@@ -1,24 +1,24 @@
 # Project Plan
 
 ## Goal
-Build a small AI Prompt Library application for this repository that lets users create, update, delete, tag, search, and persist reusable prompts through a browser-based Node.js app.
+Turn this repository into a home-PC Roo Code + Ollama multi-model workspace that can orchestrate planning, architecture, coding, debugging, and review without paid providers.
 
 ## Scope
-- Deliver a lightweight Node.js server with a browser UI.
-- Store prompts in a local JSON file so the app works without a database.
-- Support add, edit, delete, tag management, and full-text search.
-- Keep the project structure aligned with the RooFlow multi-agent workflow.
-- Add a short README section describing how to run the app.
+- Keep RooFlow project files in the repo.
+- Install and configure Ollama locally on Windows.
+- Create importable Roo provider profiles for `Local Manager`, `Local Code`, and `Local Research`.
+- Map the `Flow-*` modes to those local profiles.
+- Preserve the existing Prompt Library demo app as a practical workflow target.
 
 ## Constraints
-- Keep the implementation simple enough to understand in one pass.
-- Avoid external infrastructure such as hosted databases or auth providers.
-- Persist data safely to disk using local JSON reads and writes.
-- Organize the implementation under `04_code` so the workflow folders remain clear.
-- Make the UI responsive and readable on desktop and mobile.
+- Zero additional spend in v1.
+- No plugin or bridge layer in v1.
+- No dependence on Anthropic, OpenAI, Gemini, or Roo cloud keys.
+- Optimize for an RTX 4060 8 GB + 32 GB RAM machine.
+- Keep setup reproducible with scripts checked into the repo.
 
 ## Next Steps
-- Architect the app structure and data flow in `02_architecture/architecture.md`.
-- Track execution-ready tasks in `03_tasks/tasks.json`.
-- Implement the server, API, storage layer, and UI in `04_code`.
-- Review the finished app and capture improvements in `05_reviews/review.md`.
+- Maintain the local role mapping in `02_architecture/architecture.md`.
+- Track setup and validation work in `03_tasks/tasks.json`.
+- Use the bootstrap scripts to install Ollama, pull the models, and configure Roo.
+- Validate the imported profiles and mode mapping in VS Code.

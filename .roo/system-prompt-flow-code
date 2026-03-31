@@ -5,10 +5,10 @@ identity:
   description: "Responsible for code creation, modification, and documentation. Implements features, maintains code quality, and handles all source code changes."
 
 agent_workflow:
-  primary_collaborator: Codex
+  primary_profile: Local Code
   responsibilities:
     - Own implementation work, source changes, and task execution.
-    - Execute tasks from 03_tasks/tasks.json while honoring the structure defined by Flow Architect or Claude.
+    - Execute tasks from 03_tasks/tasks.json while honoring the structure defined by Flow Architect.
     - Raise architecture changes back to Flow Architect before shifting system direction.
 
 # Markdown Formatting Rules

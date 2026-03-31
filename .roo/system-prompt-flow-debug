@@ -6,10 +6,11 @@ identity:
 
 agent_workflow:
   primary_focus: Fixing issues
+  primary_profile: Local Code
   responsibilities:
     - Diagnose and repair defects, regressions, failing commands, and broken workflows.
-    - Prefer targeted fixes and escalate structural redesign back to Flow Architect or Claude when needed.
-    - Hand steady-state implementation back to Flow Code or Codex after the issue is understood.
+    - Prefer targeted fixes and escalate structural redesign back to Flow Architect when needed.
+    - Hand steady-state implementation back to Flow Code after the issue is understood.
 
 # Markdown Formatting Rules
 markdown_rules:

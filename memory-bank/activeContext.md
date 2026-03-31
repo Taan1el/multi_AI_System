@@ -1,12 +1,13 @@
 # Active Context
 
 ## Current Focus
-- Prompt Library sample app completed and verified.
+- Use the completed local-first Roo Code + Ollama setup as the default home-PC workflow.
 
 ## Recent Changes
-- Added planning, architecture, task, and review documents for the Prompt Library workflow.
-- Implemented the Express server, JSON persistence layer, and browser UI under `04_code`.
-- Verified the live app shell and CRUD flow with a create/delete smoke test.
+- Replaced the old Claude/Codex wording in the project workflow with local Roo + Ollama profile mappings.
+- Added repo-owned Roo import settings and bootstrap scripts for the home-PC setup.
+- Preserved the Prompt Library app in `04_code` as a practical local workflow target.
+- Installed Ollama locally, pulled the required models, and verified Roo state, profile metadata, and mode mapping.
 
 ## Open Questions
-- Whether the next iteration should add tests, import/export, or richer prompt organization.
+- Whether phase 2 should stay manual with Roo mode switching or add a local bridge service for automatic worker dispatch.

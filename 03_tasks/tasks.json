@@ -1,62 +1,54 @@
 {
   "tasks": [
     {
-      "id": "plan-001",
-      "title": "Finalize planning and architecture documents",
-      "owner": "Claude",
+      "id": "setup-001",
+      "title": "Rewrite the repo workflow for local Roo + Ollama",
+      "owner": "Local Research",
       "status": "done",
       "deliverables": [
-        "01_planning/plan.md",
-        "02_architecture/architecture.md",
-        "03_tasks/tasks.json"
-      ]
-    },
-    {
-      "id": "code-001",
-      "title": "Set up the Node.js app entry point and runtime scripts",
-      "owner": "Codex",
-      "status": "done",
-      "deliverables": [
-        "package.json",
-        "04_code/server.js"
-      ]
-    },
-    {
-      "id": "code-002",
-      "title": "Implement prompt CRUD API and JSON persistence",
-      "owner": "Codex",
-      "status": "done",
-      "deliverables": [
-        "04_code/server.js",
-        "04_code/data/prompts.json"
-      ]
-    },
-    {
-      "id": "code-003",
-      "title": "Build the browser UI for list, editor, tags, and search",
-      "owner": "Codex",
-      "status": "done",
-      "deliverables": [
-        "04_code/public/index.html",
-        "04_code/public/styles.css",
-        "04_code/public/app.js"
-      ]
-    },
-    {
-      "id": "review-001",
-      "title": "Document run instructions and review follow-up",
-      "owner": "Claude",
-      "status": "done",
-      "deliverables": [
-        "README.md",
-        "05_reviews/review.md",
+        ".roomodes",
+        "workflow.md",
+        "ROO_SETUP.md",
         "memory-bank/context.md"
+      ]
+    },
+    {
+      "id": "setup-002",
+      "title": "Create importable Roo provider profiles for local models",
+      "owner": "Local Manager",
+      "status": "done",
+      "deliverables": [
+        "roo-local-ollama-settings.json"
+      ]
+    },
+    {
+      "id": "setup-003",
+      "title": "Add Windows bootstrap and verification scripts",
+      "owner": "Local Code",
+      "status": "done",
+      "deliverables": [
+        "scripts/bootstrap-home-pc.ps1",
+        "scripts/configure-roo-local.ps1",
+        "scripts/install-ollama-models.ps1",
+        "scripts/verify-roo-local.ps1"
+      ]
+    },
+    {
+      "id": "setup-004",
+      "title": "Apply the machine-side setup and validate local model availability",
+      "owner": "Local Code",
+      "status": "done",
+      "deliverables": [
+        "%APPDATA%/Code/User/settings.json",
+        "Ollama local model cache",
+        "VS Code workspace open on this repo"
       ]
     }
   ],
   "meta": {
     "source": "02_architecture/architecture.md",
-    "architectOwner": "Claude",
-    "implementationOwner": "Codex"
+    "orchestratorOwner": "Local Manager",
+    "architectureOwner": "Local Research",
+    "implementationOwner": "Local Code"
   }
 }

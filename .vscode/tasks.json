@@ -1,0 +1,41 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Bootstrap Roo Local",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "scripts/bootstrap-home-pc.ps1"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Install Ollama Models",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "scripts/install-ollama-models.ps1"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Verify Roo Local",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "scripts/verify-roo-local.ps1"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

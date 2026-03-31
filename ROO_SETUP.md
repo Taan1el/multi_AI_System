@@ -1,130 +1,90 @@
-# Roo Code Multi-Provider Setup
+# Roo Local Ollama Setup
 
-## What is already done
+## Purpose
 
-- Roo Code is installed in VS Code.
-- This repository already contains project-local RooFlow files:
-  - `.roomodes`
-  - `.roo/`
-  - `memory-bank/`
+This repository is configured for a local-first Roo Code workflow on the home PC.
 
-That means new Roo Code chats opened inside this repository can use the Flow modes defined here.
+- Roo Code is the orchestration surface.
+- Ollama provides the local models.
+- No paid Roo cloud workflow is required for v1.
+- The Codex desktop app is not the primary orchestrator in this setup.
 
-## Best way to get Claude, Gemini, ChatGPT, Codex, and more
+## Local profiles
 
-Use Roo Code profiles and map them to different providers/models:
+The repo ships with an auto-import settings file at `roo-local-ollama-settings.json`.
+It creates these Roo provider profiles:
 
-1. `Claude Architect`
-   - Provider: Anthropic
-   - Use for: Flow Architect, review, planning
+1. `Local Manager`
+   - Provider: Ollama
+   - Model: `deepseek-r1:1.5b-qwen-distill-q8_0`
+   - Use for orchestration, decomposition, and summaries
 
-2. `Codex Code`
-   - Provider: OpenAI or ChatGPT Plus/Pro
-   - Use for: Flow Code, implementation, refactors
+2. `Local Code`
+   - Provider: Ollama
+   - Model: `qwen2.5-coder:7b`
+   - Use for coding, diffs, and implementation work
 
-3. `Gemini Research`
-   - Provider: Google Gemini
-   - Use for: long-context analysis, brainstorming, research-heavy tasks
+3. `Local Research`
+   - Provider: Ollama
+   - Model: `gemma3:4b`
+   - Use for architecture, analysis, and explanation
 
-4. `Router Lab`
-   - Provider: OpenRouter
-   - Use for: one-key access to many models from multiple vendors
+## Flow mapping
 
-5. `Copilot Bridge` (optional)
-   - Provider: VS Code LM API
-   - Use for: experimental access to models exposed by GitHub Copilot or other VS Code LM providers
+- `Flow Orchestrator` -> `Local Manager`
+- `Flow Code` -> `Local Code`
+- `Flow Debug` -> `Local Code`
+- `Flow Ask` -> `Local Research`
+- `Flow Architect` -> `Local Research`
 
-## Recommended setup order
+## One-command bootstrap
+
+Run this on the home PC:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/bootstrap-home-pc.ps1
+```
+
+The bootstrap does the following:
+
+1. Installs Ollama if it is missing.
+2. Starts the local Ollama service if needed.
+3. Pulls the required local models.
+4. Writes the Roo auto-import path into VS Code user settings.
+5. Verifies Roo, Ollama, the imported config file, and the required models.
+6. Opens this repository in VS Code.
+
+## Individual commands
+
+You can also run the pieces separately:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/install-ollama-models.ps1
+powershell -ExecutionPolicy Bypass -File scripts/configure-roo-local.ps1 -OpenVSCode
+powershell -ExecutionPolicy Bypass -File scripts/verify-roo-local.ps1
+```
+
+## Starting a RooFlow task
 
 1. Open this repository in VS Code.
 2. Open the Roo Code sidebar.
-3. Open Roo settings.
-4. Create a separate profile for each provider you actually want to use.
-5. In each profile, pick the provider and model that match the role.
-6. Start a new Roo chat in this repo and switch to:
-   - `Flow Architect` for Claude
-   - `Flow Code` for OpenAI/Codex
-   - `Flow Debug` for debugging
-   - `Flow Ask` for explanation-only turns
+3. Reload the VS Code window once if Roo was already open before setup.
+4. Start a new Roo chat in this repo.
+5. Switch to `Flow Orchestrator` for new work.
+6. Let the orchestrator route work to `Flow Architect`, `Flow Code`, `Flow Debug`, or `Flow Ask`.
 
-## What you need to add manually
+## Workflow contract in this repo
 
-- Anthropic API key for Claude
-- Google AI / Gemini API key
-- OpenAI API key or ChatGPT Plus/Pro sign-in
-- Optional OpenRouter API key
+- `01_planning` stores intent and scope.
+- `02_architecture` stores design decisions.
+- `03_tasks` stores structured execution work.
+- `04_code` stores implementation output.
+- `05_reviews` stores findings and follow-up items.
+- `memory-bank` stores persistent project context between chats.
 
-I cannot safely fill these in for you because they are your private credentials.
+## Limits for v1
 
-## Easiest real-world strategy
-
-If you want the least setup friction:
-
-- Use Anthropic directly for Claude
-- Use OpenAI directly for GPT/Codex-style coding
-- Use Google Gemini directly for Gemini
-- Use OpenRouter only if you want one fallback key for many vendors
-
-If you want the simplest single-key experiment setup:
-
-- Use OpenRouter first
-- Then add direct Anthropic/OpenAI/Google later for better control
-
-## Important behavior notes
-
-- New chats in Roo Code inside this repository can use RooFlow features because `.roomodes` and `.roo` are project-local.
-- New chats in the Codex desktop app do **not** automatically become RooFlow chats.
-- RooFlow mode files organize behavior, but the actual provider/model comes from the Roo Code profile you selected.
-
-## How to make new Roo threads use RooFlow
-
-Do this each time:
-
-1. Open this same project in VS Code
-2. Start a new Roo chat
-3. Choose the provider profile you want
-4. Switch the mode to one of the `Flow-*` modes
-
-That is the real path to "Claude for architecture, Codex/OpenAI for code" in practice.
-
-## About ChatGPT, Codex, and Copilot
-
-- `ChatGPT Plus/Pro` in Roo Code is a provider option from Roo's docs.
-- `OpenAI` is the direct API path.
-- `VS Code LM API` is experimental and can expose models from GitHub Copilot or other LM-capable extensions.
-- If you want maximum control and predictable behavior, direct Anthropic/OpenAI/Gemini providers are safer than the experimental LM API route.
-
-## Plugin vs custom modes
-
-You probably do **not** need a plugin first.
-
-Start with:
-
-- Roo profiles
-- your existing `Flow-*` modes
-- MCP servers if you need tools or integrations
-
-Create a plugin only if you want:
-
-- reusable tooling across many projects
-- custom slash commands
-- packaged prompts/modes for a team
-- repeatable installation for others
-
-## Suggested default mapping
-
-- `Flow Architect` -> Anthropic Claude
-- `Flow Code` -> OpenAI / Codex-style model
-- `Flow Debug` -> OpenAI or Claude, whichever is better for the issue
-- `Flow Ask` -> Gemini or Claude for explanation-heavy tasks
-
-## Quick start checklist
-
-- Install Roo Code
-- Open this repo in VS Code
-- Add provider credentials
-- Create 2 to 5 Roo profiles
-- Start a Roo chat
-- Pick a profile
-- Switch to a `Flow-*` mode
-- Work from `01_planning`, `02_architecture`, `03_tasks`, `04_code`, and `05_reviews`
+- No paid Claude, Gemini, OpenAI, or Roo cloud providers are required.
+- No plugin or bridge service is included yet.
+- No automatic handoff from the Codex desktop app to Roo is included.
+- If the local workflow feels too manual later, build a local bridge in phase 2.

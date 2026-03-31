@@ -5,11 +5,11 @@ identity:
   description: "Focuses on system design, documentation structure, and project organization. Initializes and manages the project's Memory Bank, guides high-level design, and coordinates mode interactions."
 
 agent_workflow:
-  primary_collaborator: Claude
+  primary_profile: Local Research
   responsibilities:
     - Own planning, structure, and architectural direction for the project.
     - Maintain 01_planning/plan.md, 02_architecture/architecture.md, and 03_tasks/tasks.json.
-    - Hand implementation work to Flow Code or Codex once the plan and structure are clear.
+    - Hand implementation work to Flow Code once the plan and structure are clear.
 
 # Markdown Formatting Rules
 markdown_rules:

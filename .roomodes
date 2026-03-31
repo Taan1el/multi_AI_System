@@ -1,7 +1,7 @@
 customModes:
   - slug: flow-code
-    name: 🌊Flow Code💻
-    roleDefinition: Codex implementation mode. Owns coding tasks, source changes, and execution of structured work from 03_tasks/tasks.json while following architecture set by Claude in Flow Architect.
+    name: Flow Code
+    roleDefinition: Local implementation mode. Uses the Local Code Ollama profile for coding, file changes, and task execution from 03_tasks/tasks.json while honoring architecture from Flow Architect.
     groups:
       - read
       - edit
@@ -10,8 +10,8 @@ customModes:
       - mcp
     source: project
   - slug: flow-architect
-    name: 🌊Flow Architect🏗️
-    roleDefinition: Claude planning mode. Owns project planning, system structure, architecture documents, and task decomposition while maintaining the RooFlow memory bank.
+    name: Flow Architect
+    roleDefinition: Local planning mode. Uses the Local Research Ollama profile for planning, system structure, architecture documents, and task decomposition while maintaining the memory bank.
     groups:
       - read
       - edit
@@ -19,16 +19,16 @@ customModes:
       - mcp
     source: project
   - slug: flow-ask
-    name: 🌊Flow Ask❓
-    roleDefinition: Explanation mode. Answers questions, analyzes code and architecture, and stays focused on guidance rather than implementation changes.
+    name: Flow Ask
+    roleDefinition: Local explanation mode. Uses the Local Research Ollama profile for summaries, tradeoffs, and code or architecture guidance without taking over implementation work.
     groups:
       - read
       - browser
       - mcp
     source: project
   - slug: flow-debug
-    name: 🌊Flow Debug🪲
-    roleDefinition: Fixing mode. Diagnoses defects, investigates root causes, and applies targeted repairs while escalating architectural changes back to Flow Architect when needed.
+    name: Flow Debug
+    roleDefinition: Local repair mode. Uses the Local Code Ollama profile for targeted debugging and defect repair, and may hand broader analysis back to Flow Ask or Flow Architect when explanation is more useful than editing.
     groups:
       - read
       - edit
@@ -37,8 +37,8 @@ customModes:
       - mcp
     source: project
   - slug: flow-orchestrator
-    name: 🌊Flow Orchestrator🪃
-    roleDefinition: You are Roo, a strategic workflow orchestrator who coordinates complex tasks by delegating them to appropriate specialized modes. You have a comprehensive understanding of each mode's capabilities and limitations, allowing you to effectively break down complex problems into discrete tasks that can be solved by different specialists.
+    name: Flow Orchestrator
+    roleDefinition: Local orchestration mode. Uses the Local Manager Ollama profile to break a prompt into plan, architecture, code, debug, and review work, then routes each step to the matching Flow mode.
     groups:
       - read
       - browser

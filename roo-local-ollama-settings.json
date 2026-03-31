@@ -1,0 +1,70 @@
+{
+  "providerProfiles": {
+    "currentApiConfigName": "Local Manager",
+    "apiConfigs": {
+      "Local Manager": {
+        "id": "local-manager-ollama",
+        "apiProvider": "ollama",
+        "ollamaBaseUrl": "http://localhost:11434",
+        "ollamaModelId": "deepseek-r1:1.5b-qwen-distill-q8_0",
+        "ollamaNumCtx": 16384
+      },
+      "Local Code": {
+        "id": "local-code-ollama",
+        "apiProvider": "ollama",
+        "ollamaBaseUrl": "http://localhost:11434",
+        "ollamaModelId": "qwen2.5-coder:7b",
+        "ollamaNumCtx": 16384
+      },
+      "Local Research": {
+        "id": "local-research-ollama",
+        "apiProvider": "ollama",
+        "ollamaBaseUrl": "http://localhost:11434",
+        "ollamaModelId": "gemma3:4b",
+        "ollamaNumCtx": 16384
+      }
+    },
+    "modeApiConfigs": {
+      "flow-orchestrator": "local-manager-ollama",
+      "flow-code": "local-code-ollama",
+      "flow-debug": "local-code-ollama",
+      "flow-ask": "local-research-ollama",
+      "flow-architect": "local-research-ollama"
+    }
+  },
+  "globalSettings": {
+    "mode": "flow-orchestrator",
+    "currentApiConfigName": "Local Manager",
+    "listApiConfigMeta": [
+      {
+        "name": "default",
+        "id": "mzms6azbkx"
+      },
+      {
+        "name": "Local Manager",
+        "id": "local-manager-ollama",
+        "apiProvider": "ollama"
+      },
+      {
+        "name": "Local Code",
+        "id": "local-code-ollama",
+        "apiProvider": "ollama"
+      },
+      {
+        "name": "Local Research",
+        "id": "local-research-ollama",
+        "apiProvider": "ollama"
+      }
+    ],
+    "modeApiConfigs": {
+      "flow-orchestrator": "local-manager-ollama",
+      "flow-code": "local-code-ollama",
+      "flow-debug": "local-code-ollama",
+      "flow-ask": "local-research-ollama",
+      "flow-architect": "local-research-ollama"
+    },
+    "mcpEnabled": true,
+    "includeCurrentTime": true,
+    "includeCurrentCost": true
+  }
+}

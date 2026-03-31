@@ -1,16 +1,17 @@
 # Decision Log
 
 ## Decision
-- Use RooFlow with a Claude and Codex split.
-- Implement the sample workflow as a small Express app with a static frontend and local JSON persistence.
+- Move the repo from a cloud-provider role split to a local-first Roo Code + Ollama workflow.
+- Keep the Prompt Library app as the sample implementation target inside the same repository.
 
 ## Rationale
-- Claude is better positioned for planning, structure, and review workflows.
-- Codex is better positioned for implementation and direct execution work.
-- A file-backed Node.js app is fast to build, easy to inspect, and ideal for proving the multi-agent workflow without extra infrastructure.
+- The v1 goal is zero additional spend and a home-PC workflow that does not depend on paid provider keys.
+- Roo Code already supports local providers, while the repo already contains the RooFlow structure and memory-bank needed for multi-step work.
+- Keeping the demo app gives the local workflow something concrete to plan, implement, debug, and review.
 
 ## Implementation Details
-- Flow Architect is mapped to Claude responsibilities.
-- Flow Code is mapped to Codex responsibilities.
-- Flow Debug handles defect repair and Flow Ask handles explanations.
-- The app serves a static UI from `04_code/public` and stores prompts in `04_code/data/prompts.json`.
+- `Local Manager` maps to `deepseek-r1:1.5b-qwen-distill-q8_0`.
+- `Local Code` maps to `qwen2.5-coder:7b`.
+- `Local Research` maps to `gemma3:4b`.
+- Roo auto-import is configured through VS Code user settings and `roo-local-ollama-settings.json`.
+- The bootstrap scripts install Ollama, pull the models, configure Roo, and verify the setup.

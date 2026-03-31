@@ -2,18 +2,22 @@
 
 ## Description
 - See `context.md` for the shared project summary.
-- The current project deliverable is a local Prompt Library app that demonstrates the RooFlow planning-to-implementation loop.
+- The primary deliverable is a local Roo Code + Ollama workflow starter for the home PC.
+- The Prompt Library app remains in the repo as a concrete test target for the workflow.
 
 ## Goals
-- Showcase the multi-agent workflow with a real but compact deliverable.
-- Provide a prompt management tool with local persistence and a polished editing surface.
+- Enable multi-step Roo workflows without paid model providers.
+- Keep orchestration, architecture, coding, and review separated through project-local Flow modes.
+- Make setup reproducible with repo-owned scripts and importable Roo settings.
 
 ## Key Features
-- Add, edit, and delete prompts.
-- Tag prompts and filter/search them in the browser.
-- Persist data locally to a JSON file without a database.
+- Auto-imported Roo provider profiles for local Ollama models.
+- PowerShell bootstrap and verification scripts for Windows.
+- Memory-bank and RooFlow directory structure kept in-repo.
+- A runnable demo app under `04_code` for real workflow validation.
 
 ## Overall Architecture
-- Express API plus static frontend assets.
-- Client-side rendering and filtering in vanilla JavaScript.
-- File-backed storage in `04_code/data/prompts.json`.
+- VS Code + Roo Code as the front-end orchestration layer.
+- Ollama as the local model runtime.
+- Repo-owned settings import and setup scripts for reproducibility.
+- `04_code` as the local target project for implementation tasks.
