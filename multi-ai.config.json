@@ -1,0 +1,88 @@
+{
+  "runtime": {
+    "outputDir": "output/multi-ai-runs",
+    "workspaceSync": true,
+    "historyLimit": 60
+  },
+  "features": {
+    "webSearch": {
+      "enabled": false,
+      "apiUrl": "https://ollama.com/api/web_search",
+      "apiKeyEnv": "OLLAMA_API_KEY",
+      "maxResults": 3
+    },
+    "urlContext": {
+      "enabled": true,
+      "maxUrls": 3,
+      "maxCharsPerUrl": 4000
+    }
+  },
+  "profiles": {
+    "local-manager": {
+      "type": "ollama",
+      "label": "Local Manager",
+      "model": "deepseek-r1:1.5b-qwen-distill-q8_0",
+      "baseUrl": "http://127.0.0.1:11434"
+    },
+    "local-code": {
+      "type": "ollama",
+      "label": "Local Code",
+      "model": "qwen2.5-coder:7b",
+      "baseUrl": "http://127.0.0.1:11434"
+    },
+    "local-research": {
+      "type": "ollama",
+      "label": "Local Research",
+      "model": "gemma3:4b",
+      "baseUrl": "http://127.0.0.1:11434"
+    },
+    "anthropic-architect": {
+      "type": "anthropic",
+      "label": "Claude Architect",
+      "model": "claude-3-7-sonnet-latest",
+      "apiKeyEnv": "ANTHROPIC_API_KEY",
+      "apiUrl": "https://api.anthropic.com/v1/messages"
+    },
+    "openai-code": {
+      "type": "openai",
+      "label": "OpenAI Code",
+      "model": "gpt-5",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "baseUrl": "https://api.openai.com/v1"
+    },
+    "gemini-review": {
+      "type": "gemini",
+      "label": "Gemini Review",
+      "model": "gemini-2.5-pro",
+      "apiKeyEnv": "GEMINI_API_KEY",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta"
+    },
+    "openrouter-fallback": {
+      "type": "openai-compatible",
+      "label": "OpenRouter Fallback",
+      "model": "openai/gpt-5",
+      "apiKeyEnv": "OPENROUTER_API_KEY",
+      "baseUrl": "https://openrouter.ai/api/v1"
+    }
+  },
+  "presets": {
+    "local": {
+      "label": "Local only",
+      "roles": {
+        "manager": ["local-manager"],
+        "architect": ["local-research"],
+        "code": ["local-code"],
+        "review": ["local-research"]
+      }
+    },
+    "hybrid": {
+      "label": "Hybrid local + cloud",
+      "roles": {
+        "manager": ["local-manager", "openrouter-fallback"],
+        "architect": ["anthropic-architect", "gemini-review", "local-research"],
+        "code": ["openai-code", "openrouter-fallback", "local-code"],
+        "review": ["gemini-review", "anthropic-architect", "local-research"]
+      }
+    }
+  }
+}
