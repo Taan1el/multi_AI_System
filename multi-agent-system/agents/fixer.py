@@ -7,7 +7,13 @@ import json
 from crewai import Task
 
 from agents.base_agent import BasePhaseAgent
-from schemas import Implementation, ReviewReport, ValidationReport
+from schemas import (
+    Implementation,
+    ResearchReport,
+    ReviewReport,
+    TechnicalDesign,
+    ValidationReport,
+)
 
 
 class FixerAgent(BasePhaseAgent):
@@ -29,6 +35,8 @@ class FixerAgent(BasePhaseAgent):
         validation: ValidationReport,
         requirements: list[str] | None = None,
         attempt_number: int = 1,
+        research: ResearchReport | None = None,
+        design: TechnicalDesign | None = None,
     ) -> Task:
         """Create a repair task for a flawed implementation."""
         implementation_json = implementation.model_dump_json(indent=2)
@@ -40,6 +48,10 @@ class FixerAgent(BasePhaseAgent):
         missing_requirements_json = json.dumps(
             validation.missing_requirements, indent=2
         )
+        research_json = (
+            research.model_dump_json(indent=2) if research is not None else "null"
+        )
+        design_json = design.model_dump_json(indent=2) if design is not None else "null"
 
         description = (
             "Revise the implementation so it better satisfies the user request, "
@@ -50,6 +62,8 @@ class FixerAgent(BasePhaseAgent):
             f"Current implementation JSON:\n{implementation_json}\n\n"
             f"Review report JSON:\n{review_json}\n\n"
             f"Validation report JSON:\n{validation_json}\n\n"
+            f"Research report JSON:\n{research_json}\n\n"
+            f"Technical design JSON:\n{design_json}\n\n"
             f"Review issues to resolve:\n{review_issues_json}\n\n"
             f"Validation schema errors to resolve:\n{validation_errors_json}\n\n"
             f"Missing requirements to address:\n{missing_requirements_json}\n\n"

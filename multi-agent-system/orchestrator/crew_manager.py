@@ -11,14 +11,23 @@ from typing import Any, Dict
 from crewai import Crew, Process
 
 from agents import (
+    ArchitectAgent,
     ExecutorAgent,
     FixerAgent,
     ModelSettings,
     PlannerAgent,
+    ResearcherAgent,
     ReviewerAgent,
     ValidatorAgent,
 )
-from schemas import Implementation, PlanOutput, ReviewReport, ValidationReport
+from schemas import (
+    Implementation,
+    PlanOutput,
+    ResearchReport,
+    ReviewReport,
+    TechnicalDesign,
+    ValidationReport,
+)
 from utils import (
     detect_placeholder_code,
     find_missing_requirements,
@@ -93,6 +102,31 @@ DELIVERABLE_HINTS = {
     "tool",
 }
 INVALID_SIGNAL_WORDS = {"gibberish", "nonsense", "invalid", "random"}
+MEDIUM_COMPLEX_HINTS = {
+    "api",
+    "architecture",
+    "auth",
+    "authentication",
+    "backend",
+    "class",
+    "crud",
+    "database",
+    "endpoint",
+    "integration",
+    "module",
+    "rest",
+    "service",
+    "system",
+}
+COMPLEX_HINTS = {
+    "authorization",
+    "microservice",
+    "oauth",
+    "permissions",
+    "queue",
+    "scalable",
+    "worker",
+}
 
 
 class PromptValidationError(ValueError):
@@ -104,7 +138,7 @@ class PromptValidationError(ValueError):
 
 
 class CrewManager:
-    """Manage the Phase 2 planner -> executor -> reviewer -> fixer -> validator pipeline."""
+    """Manage the Phase 3 AI pipeline with routing, repair, and validation."""
 
     def __init__(
         self,
@@ -121,6 +155,8 @@ class CrewManager:
         """Create a consistent set of agent wrappers for a model profile."""
         return {
             "planner": PlannerAgent(model_settings),
+            "researcher": ResearcherAgent(model_settings),
+            "architect": ArchitectAgent(model_settings),
             "executor": ExecutorAgent(model_settings),
             "reviewer": ReviewerAgent(model_settings),
             "fixer": FixerAgent(model_settings),
@@ -183,6 +219,8 @@ class CrewManager:
             "prompt": prompt,
             "model": cls.model_metadata(model_settings),
             "plan": None,
+            "research": None,
+            "design": None,
             "implementation": None,
             "review": None,
             "validation": None,
@@ -261,11 +299,41 @@ class CrewManager:
         user_prompt: str,
         plan: PlanOutput,
         executor_agent: ExecutorAgent,
+        research: ResearchReport | None = None,
+        design: TechnicalDesign | None = None,
     ) -> Implementation:
         """Run the executor stage."""
-        task = executor_agent.create_task(user_prompt, plan)
+        task = executor_agent.create_task(
+            user_prompt,
+            plan,
+            research=research,
+            design=design,
+        )
         self._run_stage([task], [executor_agent.agent])
         return executor_agent.parse_output(task.output, Implementation)
+
+    def _run_researcher(
+        self,
+        user_prompt: str,
+        plan: PlanOutput,
+        researcher_agent: ResearcherAgent,
+    ) -> ResearchReport:
+        """Run the researcher stage."""
+        task = researcher_agent.create_task(user_prompt, plan)
+        self._run_stage([task], [researcher_agent.agent])
+        return researcher_agent.parse_output(task.output, ResearchReport)
+
+    def _run_architect(
+        self,
+        user_prompt: str,
+        plan: PlanOutput,
+        research: ResearchReport,
+        architect_agent: ArchitectAgent,
+    ) -> TechnicalDesign:
+        """Run the architect stage."""
+        task = architect_agent.create_task(user_prompt, plan, research)
+        self._run_stage([task], [architect_agent.agent])
+        return architect_agent.parse_output(task.output, TechnicalDesign)
 
     def _run_reviewer(
         self,
@@ -281,7 +349,7 @@ class CrewManager:
     def _run_validator(
         self,
         user_prompt: str,
-        plan: PlanOutput,
+        requirements: list[str],
         implementation: Implementation,
         review: ReviewReport,
         utility_findings: Dict[str, Any],
@@ -292,7 +360,7 @@ class CrewManager:
             user_prompt=user_prompt,
             implementation=implementation,
             review=review,
-            requirements=plan.requirements,
+            requirements=requirements,
             utility_findings=utility_findings,
         )
         self._run_stage([task], [validator_agent.agent])
@@ -307,6 +375,9 @@ class CrewManager:
         validation: ValidationReport,
         attempt_number: int,
         fixer_agent: FixerAgent,
+        requirements: list[str] | None = None,
+        research: ResearchReport | None = None,
+        design: TechnicalDesign | None = None,
     ) -> Implementation:
         """Run the fixer stage."""
         task = fixer_agent.create_task(
@@ -314,8 +385,10 @@ class CrewManager:
             implementation=implementation,
             review=review,
             validation=validation,
-            requirements=plan.requirements,
+            requirements=requirements or plan.requirements,
             attempt_number=attempt_number,
+            research=research,
+            design=design,
         )
         self._run_stage([task], [fixer_agent.agent])
         return fixer_agent.parse_output(task.output, Implementation)
@@ -335,7 +408,7 @@ class CrewManager:
 
     def _build_local_validation(
         self,
-        plan: PlanOutput,
+        requirements: list[str],
         implementation: Implementation,
         review: ReviewReport,
     ) -> tuple[ValidationReport, Dict[str, Any]]:
@@ -349,7 +422,7 @@ class CrewManager:
         syntax_errors = validate_code_syntax(implementation.files)
         placeholder_findings = detect_placeholder_code(implementation.files)
         missing_requirements = find_missing_requirements(
-            plan.requirements,
+            requirements,
             self._implementation_text(implementation),
         )
 
@@ -399,7 +472,7 @@ class CrewManager:
 
     @staticmethod
     def _merge_validation_reports(
-        plan: PlanOutput,
+        requirements: list[str],
         review: ReviewReport,
         local_validation: ValidationReport,
         agent_validation: ValidationReport,
@@ -411,7 +484,7 @@ class CrewManager:
                 combined_schema_errors.append(error)
 
         combined_missing_requirements = list(local_validation.missing_requirements)
-        allowed_requirements = set(plan.requirements)
+        allowed_requirements = set(requirements)
         for requirement in agent_validation.missing_requirements:
             if (
                 requirement in allowed_requirements
@@ -454,11 +527,47 @@ class CrewManager:
             final_recommendation=final_recommendation,
         )
 
+    @staticmethod
+    def _infer_complexity(prompt: str, plan: PlanOutput) -> str:
+        """Escalate planner complexity when the prompt describes a larger system."""
+        text = " ".join(
+            [
+                prompt,
+                plan.task_type,
+                *plan.requirements,
+                *plan.execution_steps,
+            ]
+        ).lower()
+        tokens = set(re.findall(r"[a-zA-Z]{3,}", text))
+        medium_hits = len(tokens.intersection(MEDIUM_COMPLEX_HINTS))
+        complex_hits = len(tokens.intersection(COMPLEX_HINTS))
+
+        if complex_hits >= 1 or medium_hits >= 4:
+            return "complex"
+        if medium_hits >= 2 or len(plan.requirements) >= 4 or len(plan.execution_steps) >= 4:
+            return "medium"
+        return plan.complexity
+
+    def _normalize_plan(self, prompt: str, plan: PlanOutput) -> PlanOutput:
+        """Normalize plan complexity so routing is stable across model outputs."""
+        inferred_complexity = self._infer_complexity(prompt, plan)
+        complexity_order = {"simple": 0, "medium": 1, "complex": 2}
+        final_complexity = max(
+            plan.complexity,
+            inferred_complexity,
+            key=lambda value: complexity_order[value],
+        )
+        if final_complexity == plan.complexity:
+            return plan
+        return plan.model_copy(update={"complexity": final_complexity})
+
     def run(self, user_prompt: str) -> Dict[str, Any]:
-        """Execute the sequential CrewAI pipeline with fix and validation stages."""
+        """Execute the sequential CrewAI pipeline with Phase 3 routing."""
         sanitized_prompt = self.validate_prompt(user_prompt)
         active_agents, active_model_settings = self._select_agents(sanitized_prompt)
         planner_agent = active_agents["planner"]
+        researcher_agent = active_agents["researcher"]
+        architect_agent = active_agents["architect"]
         executor_agent = active_agents["executor"]
         reviewer_agent = active_agents["reviewer"]
         fixer_agent = active_agents["fixer"]
@@ -468,11 +577,39 @@ class CrewManager:
             "Starting sequential crew run with model %s",
             active_model_settings.crewai_model,
         )
-        plan = self._run_planner(sanitized_prompt, planner_agent)
-        implementation = self._run_executor(sanitized_prompt, plan, executor_agent)
+        plan = self._normalize_plan(
+            sanitized_prompt,
+            self._run_planner(sanitized_prompt, planner_agent),
+        )
+        research: ResearchReport | None = None
+        design: TechnicalDesign | None = None
+        if plan.complexity in {"medium", "complex"}:
+            research = self._run_researcher(
+                sanitized_prompt,
+                plan,
+                researcher_agent,
+            )
+            design = self._run_architect(
+                sanitized_prompt,
+                plan,
+                research,
+                architect_agent,
+            )
+        effective_requirements = (
+            research.requirements if research is not None and research.requirements else plan.requirements
+        )
+        implementation = self._run_executor(
+            sanitized_prompt,
+            plan,
+            executor_agent,
+            research=research,
+            design=design,
+        )
         review = self._run_reviewer(sanitized_prompt, implementation, reviewer_agent)
         local_validation, utility_findings = self._build_local_validation(
-            plan, implementation, review
+            effective_requirements,
+            implementation,
+            review,
         )
 
         fix_attempts = 0
@@ -491,19 +628,24 @@ class CrewManager:
                 local_validation,
                 attempt_number=fix_attempts,
                 fixer_agent=fixer_agent,
+                requirements=effective_requirements,
+                research=research,
+                design=design,
             )
             review = self._run_reviewer(sanitized_prompt, implementation, reviewer_agent)
             local_validation, utility_findings = self._build_local_validation(
-                plan, implementation, review
+                effective_requirements,
+                implementation,
+                review,
             )
 
         validation = self._merge_validation_reports(
-            plan,
+            effective_requirements,
             review,
             local_validation,
             self._run_validator(
                 sanitized_prompt,
-                plan,
+                effective_requirements,
                 implementation,
                 review,
                 utility_findings,
@@ -529,18 +671,23 @@ class CrewManager:
                 validation,
                 attempt_number=fix_attempts,
                 fixer_agent=fixer_agent,
+                requirements=effective_requirements,
+                research=research,
+                design=design,
             )
             review = self._run_reviewer(sanitized_prompt, implementation, reviewer_agent)
             local_validation, utility_findings = self._build_local_validation(
-                plan, implementation, review
+                effective_requirements,
+                implementation,
+                review,
             )
             validation = self._merge_validation_reports(
-                plan,
+                effective_requirements,
                 review,
                 local_validation,
                 self._run_validator(
                     sanitized_prompt,
-                    plan,
+                    effective_requirements,
                     implementation,
                     review,
                     utility_findings,
@@ -572,6 +719,8 @@ class CrewManager:
             "prompt": sanitized_prompt,
             "model": self.model_metadata(active_model_settings),
             "plan": plan.model_dump(),
+            "research": None if research is None else research.model_dump(),
+            "design": None if design is None else design.model_dump(),
             "implementation": implementation.model_dump(),
             "review": review.model_dump(),
             "validation": validation.model_dump(),
