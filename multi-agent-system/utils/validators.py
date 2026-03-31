@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import ast
 import json
 import re
 from typing import Any, Mapping, Sequence
 
 from pydantic import BaseModel, ValidationError
+
+from schemas.implementation import GeneratedFile
 
 PLACEHOLDER_PATTERNS = (
     re.compile(r"\bTODO\b", re.IGNORECASE),
@@ -55,17 +56,33 @@ def validate_schema_compliance(
     return []
 
 
-def validate_code_syntax(files: Sequence[Mapping[str, str]]) -> list[str]:
+def _read_file_entry(file_entry: Mapping[str, str] | GeneratedFile) -> tuple[str, str]:
+    """Normalize a file entry into path/content strings."""
+    if isinstance(file_entry, GeneratedFile):
+        return file_entry.path, file_entry.content
+
+    if {"path", "content"}.issubset(file_entry):
+        return str(file_entry.get("path", "")), str(file_entry.get("content", ""))
+
+    if len(file_entry) == 1:
+        path, content = next(iter(file_entry.items()))
+        return str(path), str(content)
+
+    return "", ""
+
+
+def validate_code_syntax(
+    files: Sequence[Mapping[str, str] | GeneratedFile],
+) -> list[str]:
     """Return syntax validation errors for generated code files."""
     errors: list[str] = []
     for file_entry in files:
-        path = str(file_entry.get("path", ""))
-        content = str(file_entry.get("content", ""))
+        path, content = _read_file_entry(file_entry)
         normalized_path = path.lower()
 
         if normalized_path.endswith(".py"):
             try:
-                ast.parse(content, filename=path)
+                compile(content, path, "exec")
             except SyntaxError as exc:
                 errors.append(
                     f"{path}: Python syntax error on line {exc.lineno}: {exc.msg}"
@@ -78,12 +95,13 @@ def validate_code_syntax(files: Sequence[Mapping[str, str]]) -> list[str]:
     return errors
 
 
-def detect_placeholder_code(files: Sequence[Mapping[str, str]]) -> list[str]:
+def detect_placeholder_code(
+    files: Sequence[Mapping[str, str] | GeneratedFile],
+) -> list[str]:
     """Return findings for placeholder or obviously incomplete code."""
     findings: list[str] = []
     for file_entry in files:
-        path = str(file_entry.get("path", ""))
-        content = str(file_entry.get("content", ""))
+        path, content = _read_file_entry(file_entry)
         for pattern in PLACEHOLDER_PATTERNS:
             if pattern.search(content):
                 findings.append(

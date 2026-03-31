@@ -35,6 +35,11 @@ class FixerAgent(BasePhaseAgent):
         review_json = review.model_dump_json(indent=2)
         validation_json = validation.model_dump_json(indent=2)
         requirements_json = json.dumps(requirements or [], indent=2)
+        review_issues_json = json.dumps(review.issues, indent=2)
+        validation_errors_json = json.dumps(validation.schema_errors, indent=2)
+        missing_requirements_json = json.dumps(
+            validation.missing_requirements, indent=2
+        )
 
         description = (
             "Revise the implementation so it better satisfies the user request, "
@@ -45,9 +50,15 @@ class FixerAgent(BasePhaseAgent):
             f"Current implementation JSON:\n{implementation_json}\n\n"
             f"Review report JSON:\n{review_json}\n\n"
             f"Validation report JSON:\n{validation_json}\n\n"
+            f"Review issues to resolve:\n{review_issues_json}\n\n"
+            f"Validation schema errors to resolve:\n{validation_errors_json}\n\n"
+            f"Missing requirements to address:\n{missing_requirements_json}\n\n"
+            "Resolve every issue listed above.\n"
             "Return a fully revised implementation. Keep file paths as safe "
             "relative paths, remove placeholder code, and make the deliverable "
-            "more complete than the previous attempt.\n\n"
+            "more complete than the previous attempt.\n"
+            "For Python outputs, return a runnable module that compiles, uses "
+            "correct imports, and avoids top-level return statements.\n\n"
             f"{self.json_only_instructions(Implementation)}"
         )
 
