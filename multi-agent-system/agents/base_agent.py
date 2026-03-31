@@ -106,6 +106,20 @@ class BasePhaseAgent(ABC):
 
         raw_output = getattr(output, "raw", output)
         if isinstance(raw_output, str):
-            return schema_model.model_validate_json(raw_output)
+            candidate = raw_output.strip()
+            try:
+                return schema_model.model_validate_json(candidate)
+            except ValueError:
+                extracted = BasePhaseAgent._extract_json_object(candidate)
+                return schema_model.model_validate_json(extracted)
 
         return schema_model.model_validate(raw_output)
+
+    @staticmethod
+    def _extract_json_object(raw_output: str) -> str:
+        """Extract the outermost JSON object from a string response."""
+        start_index = raw_output.find("{")
+        end_index = raw_output.rfind("}")
+        if start_index == -1 or end_index == -1 or end_index <= start_index:
+            raise ValueError("No JSON object was found in the model output.")
+        return raw_output[start_index : end_index + 1]

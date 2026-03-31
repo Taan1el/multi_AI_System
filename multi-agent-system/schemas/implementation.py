@@ -35,8 +35,8 @@ class Implementation(BaseModel):
         validated_files: List[Dict[str, str]] = []
         for file_entry in value:
             path = file_entry.get("path", "").strip()
-            content = file_entry.get("content", "").strip()
-            if not path or not content:
+            content = file_entry.get("content", "")
+            if not path or not content.strip():
                 raise ValueError(
                     "Each file entry must include non-empty 'path' and 'content' values."
                 )

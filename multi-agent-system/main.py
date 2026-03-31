@@ -58,6 +58,7 @@ def main() -> int:
         print(f"Pipeline failed: {exc}", file=sys.stderr)
         return 1
 
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result, indent=2))
     print(f"Saved result to {output_path}")
