@@ -1,4 +1,4 @@
-"""Sequential CrewAI orchestration for the Phase 1 pipeline."""
+"""Sequential CrewAI orchestration for the Phase 2 pipeline."""
 
 from __future__ import annotations
 
@@ -10,10 +10,25 @@ from typing import Any, Dict
 
 from crewai import Crew, Process
 
-from agents import ExecutorAgent, ModelSettings, PlannerAgent, ReviewerAgent
-from schemas import Implementation, PlanOutput, ReviewReport
+from agents import (
+    ExecutorAgent,
+    FixerAgent,
+    ModelSettings,
+    PlannerAgent,
+    ReviewerAgent,
+    ValidatorAgent,
+)
+from schemas import Implementation, PlanOutput, ReviewReport, ValidationReport
+from utils import (
+    detect_placeholder_code,
+    find_missing_requirements,
+    validate_code_syntax,
+    validate_json_structure,
+    validate_schema_compliance,
+)
 
 LOGGER = logging.getLogger(__name__)
+MAX_FIX_ATTEMPTS = 2
 ACTION_WORDS = {
     "add",
     "analyze",
@@ -74,6 +89,8 @@ class CrewManager:
         self.planner = PlannerAgent(model_settings)
         self.executor = ExecutorAgent(model_settings)
         self.reviewer = ReviewerAgent(model_settings)
+        self.fixer = FixerAgent(model_settings)
+        self.validator = ValidatorAgent(model_settings)
 
     @classmethod
     def from_config(cls, config_path: Path, profile: str = "default") -> "CrewManager":
@@ -120,6 +137,8 @@ class CrewManager:
             "plan": None,
             "implementation": None,
             "review": None,
+            "validation": None,
+            "fix_attempts": 0,
             "approved": False,
             "error": {
                 "type": error_type,
@@ -162,45 +181,253 @@ class CrewManager:
 
         return sanitized_prompt
 
-    def run(self, user_prompt: str) -> Dict[str, Any]:
-        """Execute the sequential CrewAI pipeline and return validated output."""
-        sanitized_prompt = self.validate_prompt(user_prompt)
-
-        plan_task = self.planner.create_task(sanitized_prompt)
-        implementation_task = self.executor.create_task(sanitized_prompt, plan_task)
-        review_task = self.reviewer.create_task(sanitized_prompt, implementation_task)
-
+    def _run_stage(self, tasks: list[Any], agents: list[Any]) -> None:
+        """Run a sequential CrewAI stage with the supplied tasks and agents."""
         crew = Crew(
-            agents=[
-                self.planner.agent,
-                self.executor.agent,
-                self.reviewer.agent,
-            ],
-            tasks=[plan_task, implementation_task, review_task],
+            agents=agents,
+            tasks=tasks,
             process=Process.sequential,
             verbose=False,
         )
+        crew.kickoff()
 
+    def _run_planner(self, user_prompt: str) -> PlanOutput:
+        """Run the planner stage."""
+        task = self.planner.create_task(user_prompt)
+        self._run_stage([task], [self.planner.agent])
+        return self.planner.parse_output(task.output, PlanOutput)
+
+    def _run_executor(self, user_prompt: str, plan: PlanOutput) -> Implementation:
+        """Run the executor stage."""
+        task = self.executor.create_task(user_prompt, plan)
+        self._run_stage([task], [self.executor.agent])
+        return self.executor.parse_output(task.output, Implementation)
+
+    def _run_reviewer(
+        self, user_prompt: str, implementation: Implementation
+    ) -> ReviewReport:
+        """Run the reviewer stage."""
+        task = self.reviewer.create_task(user_prompt, implementation)
+        self._run_stage([task], [self.reviewer.agent])
+        return self.reviewer.parse_output(task.output, ReviewReport)
+
+    def _run_validator(
+        self,
+        user_prompt: str,
+        plan: PlanOutput,
+        implementation: Implementation,
+        review: ReviewReport,
+        utility_findings: Dict[str, Any],
+    ) -> ValidationReport:
+        """Run the validator stage."""
+        task = self.validator.create_task(
+            user_prompt=user_prompt,
+            implementation=implementation,
+            review=review,
+            requirements=plan.requirements,
+            utility_findings=utility_findings,
+        )
+        self._run_stage([task], [self.validator.agent])
+        return self.validator.parse_output(task.output, ValidationReport)
+
+    def _run_fixer(
+        self,
+        user_prompt: str,
+        plan: PlanOutput,
+        implementation: Implementation,
+        review: ReviewReport,
+        validation: ValidationReport,
+        attempt_number: int,
+    ) -> Implementation:
+        """Run the fixer stage."""
+        task = self.fixer.create_task(
+            user_prompt=user_prompt,
+            implementation=implementation,
+            review=review,
+            validation=validation,
+            requirements=plan.requirements,
+            attempt_number=attempt_number,
+        )
+        self._run_stage([task], [self.fixer.agent])
+        return self.fixer.parse_output(task.output, Implementation)
+
+    @staticmethod
+    def _implementation_text(implementation: Implementation) -> str:
+        """Flatten the implementation into searchable text."""
+        parts: list[str] = [
+            implementation.description,
+            *implementation.technologies_used,
+            *implementation.completed_steps,
+        ]
+        for file_entry in implementation.files:
+            parts.append(file_entry["path"])
+            parts.append(file_entry["content"])
+        return "\n".join(parts)
+
+    def _build_local_validation(
+        self,
+        plan: PlanOutput,
+        implementation: Implementation,
+        review: ReviewReport,
+    ) -> tuple[ValidationReport, Dict[str, Any]]:
+        """Build a local validation report from deterministic checks."""
+        json_errors = validate_json_structure(implementation.model_dump())
+        json_errors.extend(validate_json_structure(review.model_dump()))
+
+        schema_errors = validate_schema_compliance(implementation, Implementation)
+        schema_errors.extend(validate_schema_compliance(review, ReviewReport))
+
+        syntax_errors = validate_code_syntax(implementation.files)
+        placeholder_findings = detect_placeholder_code(implementation.files)
+        missing_requirements = find_missing_requirements(
+            plan.requirements,
+            self._implementation_text(implementation),
+        )
+
+        all_errors = [
+            *json_errors,
+            *schema_errors,
+            *syntax_errors,
+            *placeholder_findings,
+        ]
+
+        completeness_score = 100
+        completeness_score -= min(45, len(all_errors) * 12)
+        completeness_score -= min(35, len(missing_requirements) * 12)
+        if review.status == "needs_revision":
+            completeness_score -= 15
+        completeness_score = max(0, completeness_score)
+
+        valid = not all_errors and not missing_requirements and review.status == "approved"
+        ready_for_delivery = valid and completeness_score >= 80
+        recommendation = (
+            "Ready for final delivery."
+            if ready_for_delivery
+            else "Further fixes are required before delivery."
+        )
+
+        local_report = ValidationReport(
+            valid=valid,
+            completeness_score=completeness_score,
+            schema_errors=all_errors,
+            missing_requirements=missing_requirements,
+            ready_for_delivery=ready_for_delivery,
+            final_recommendation=recommendation,
+        )
+
+        utility_findings: Dict[str, Any] = {
+            "json_structure_errors": json_errors,
+            "schema_compliance_errors": schema_errors,
+            "code_syntax_errors": syntax_errors,
+            "placeholder_findings": placeholder_findings,
+            "missing_requirements": missing_requirements,
+            "review_status": review.status,
+            "local_validation_report": local_report.model_dump(),
+        }
+        return local_report, utility_findings
+
+    def run(self, user_prompt: str) -> Dict[str, Any]:
+        """Execute the sequential CrewAI pipeline with fix and validation stages."""
+        sanitized_prompt = self.validate_prompt(user_prompt)
         LOGGER.info(
             "Starting sequential crew run with model %s",
             self.model_settings.crewai_model,
         )
-        crew.kickoff()
-
-        plan = self.planner.parse_output(plan_task.output, PlanOutput)
-        implementation = self.executor.parse_output(
-            implementation_task.output, Implementation
+        plan = self._run_planner(sanitized_prompt)
+        implementation = self._run_executor(sanitized_prompt, plan)
+        review = self._run_reviewer(sanitized_prompt, implementation)
+        local_validation, utility_findings = self._build_local_validation(
+            plan, implementation, review
         )
-        review = self.reviewer.parse_output(review_task.output, ReviewReport)
 
-        LOGGER.info("Crew run completed with review status '%s'", review.status)
+        fix_attempts = 0
+        validation: ValidationReport | None = None
+
+        if review.status == "needs_revision" or not local_validation.ready_for_delivery:
+            fix_attempts += 1
+            LOGGER.warning(
+                "Initial review or local validation requires repair. Starting fix attempt %s.",
+                fix_attempts,
+            )
+            implementation = self._run_fixer(
+                sanitized_prompt,
+                plan,
+                implementation,
+                review,
+                local_validation,
+                attempt_number=fix_attempts,
+            )
+            review = self._run_reviewer(sanitized_prompt, implementation)
+            local_validation, utility_findings = self._build_local_validation(
+                plan, implementation, review
+            )
+
+        validation = self._run_validator(
+            sanitized_prompt,
+            plan,
+            implementation,
+            review,
+            utility_findings,
+        )
+
+        while (
+            (review.status == "needs_revision" or not validation.ready_for_delivery)
+            and fix_attempts < MAX_FIX_ATTEMPTS
+        ):
+            fix_attempts += 1
+            LOGGER.warning(
+                "Validation failed after review status '%s'. Starting fix attempt %s.",
+                review.status,
+                fix_attempts,
+            )
+            implementation = self._run_fixer(
+                sanitized_prompt,
+                plan,
+                implementation,
+                review,
+                validation,
+                attempt_number=fix_attempts,
+            )
+            review = self._run_reviewer(sanitized_prompt, implementation)
+            local_validation, utility_findings = self._build_local_validation(
+                plan, implementation, review
+            )
+            validation = self._run_validator(
+                sanitized_prompt,
+                plan,
+                implementation,
+                review,
+                utility_findings,
+            )
+
+        approved = review.status == "approved" and validation.ready_for_delivery
+        status = "completed" if approved else "failed_validation"
+        error: Dict[str, str] | None = None
+        if not approved:
+            error = {
+                "type": "validation_failed_after_retries",
+                "message": (
+                    "The implementation still needs work after the maximum number "
+                    "of fix attempts."
+                ),
+            }
+
+        LOGGER.info(
+            "Crew run completed with review status '%s', validator ready=%s, fix attempts=%s",
+            review.status,
+            validation.ready_for_delivery,
+            fix_attempts,
+        )
 
         return {
-            "status": "completed",
+            "status": status,
             "prompt": sanitized_prompt,
             "model": self.model_metadata(self.model_settings),
             "plan": plan.model_dump(),
             "implementation": implementation.model_dump(),
             "review": review.model_dump(),
-            "approved": review.status == "approved",
+            "validation": validation.model_dump(),
+            "fix_attempts": fix_attempts,
+            "approved": approved,
+            "error": error,
         }
