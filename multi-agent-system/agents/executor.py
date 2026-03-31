@@ -57,14 +57,18 @@ class ExecutorAgent(BasePhaseAgent):
             description += (
                 "Technical design JSON:\n"
                 f"{design.model_dump_json(indent=2)}\n\n"
-                "Use the design as the preferred implementation blueprint.\n\n"
+                "Use the design as the preferred implementation blueprint and "
+                "follow its structure as closely as practical.\n\n"
             )
 
         description += (
             "Avoid placeholder code. If the request implies multiple modules, "
             "return a realistic multi-file implementation. For Python outputs, "
             "return runnable code with correct imports and basic error handling "
-            "where the request calls for it.\n\n"
+            "where the request calls for it.\n"
+            "For API tasks, include request validation, authentication guards "
+            "where protected behavior is implied, and configuration that avoids "
+            "hardcoded secrets.\n\n"
         )
 
         description += self.json_only_instructions(Implementation)

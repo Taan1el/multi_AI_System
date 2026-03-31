@@ -20,6 +20,18 @@ PLACEHOLDER_PATTERNS = (
     re.compile(r"lorem ipsum", re.IGNORECASE),
     re.compile(r"\.\.\."),
 )
+NON_SIGNAL_REQUIREMENT_TOKENS = {
+    "build",
+    "create",
+    "develop",
+    "implement",
+    "operation",
+    "operations",
+    "service",
+    "simple",
+    "system",
+    "write",
+}
 
 
 def validate_json_structure(payload: Any) -> list[str]:
@@ -118,7 +130,26 @@ def find_missing_requirements(
     missing: list[str] = []
 
     for requirement in requirements:
-        tokens = re.findall(r"[a-zA-Z]{4,}", requirement.lower())
+        normalized_requirement = requirement.lower()
+
+        if "crud" in normalized_requirement:
+            has_named_crud = all(
+                keyword in normalized_text
+                for keyword in ("create", "update", "delete")
+            ) and ("read" in normalized_text or "get" in normalized_text)
+            has_http_crud = all(
+                keyword in normalized_text for keyword in ("post", "put", "delete", "get")
+            )
+            if has_named_crud or has_http_crud:
+                continue
+
+        tokens = [
+            token
+            for token in re.findall(r"[a-zA-Z]{4,}", normalized_requirement)
+            if token not in NON_SIGNAL_REQUIREMENT_TOKENS
+        ]
+        if not tokens:
+            tokens = re.findall(r"[a-zA-Z]{4,}", normalized_requirement)
         if not tokens:
             continue
 

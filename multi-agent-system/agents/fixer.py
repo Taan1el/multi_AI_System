@@ -73,6 +73,13 @@ class FixerAgent(BasePhaseAgent):
             "more complete than the previous attempt.\n"
             "For Python outputs, return a runnable module that compiles, uses "
             "correct imports, and avoids top-level return statements.\n\n"
+            "If the task is an API or backend, prefer a clearer multi-file "
+            "structure, add request validation and error handling, avoid "
+            "hardcoded secrets, and ensure protected routes actually enforce "
+            "authentication.\n"
+            "For Node.js/CommonJS outputs, make sure import and export shapes "
+            "line up correctly and that CRUD routes cover create, read, update, "
+            "and delete behavior for the main resource.\n\n"
             f"{self.json_only_instructions(Implementation)}"
         )
 

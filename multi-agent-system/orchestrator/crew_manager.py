@@ -61,6 +61,24 @@ ACTION_WORDS = {
     "write",
 }
 QUESTION_WORDS = {"how", "what", "why", "when", "where", "who", "which", "explain"}
+CODE_TASK_HINTS = {
+    "api",
+    "app",
+    "application",
+    "backend",
+    "class",
+    "code",
+    "crud",
+    "database",
+    "endpoint",
+    "function",
+    "module",
+    "python",
+    "rest",
+    "script",
+    "service",
+    "tool",
+}
 DELIVERABLE_HINTS = {
     "algorithm",
     "analysis",
@@ -484,28 +502,31 @@ class CrewManager:
             ):
                 combined_missing_requirements.append(requirement)
 
+        agent_has_supported_blockers = bool(
+            agent_validation.schema_errors or agent_validation.missing_requirements
+        )
         completeness_score = min(
             local_validation.completeness_score,
             agent_validation.completeness_score,
         )
         valid = (
             local_validation.valid
-            and agent_validation.valid
             and review.status == "approved"
             and not combined_schema_errors
             and not combined_missing_requirements
+            and (agent_validation.valid or not agent_has_supported_blockers)
         )
         ready_for_delivery = (
             local_validation.ready_for_delivery
-            and agent_validation.ready_for_delivery
             and valid
+            and (agent_validation.ready_for_delivery or not agent_has_supported_blockers)
         )
         final_recommendation = (
             "Ready for final delivery."
             if ready_for_delivery
             else (
                 local_validation.final_recommendation
-                if not local_validation.ready_for_delivery
+                if not local_validation.ready_for_delivery or not agent_has_supported_blockers
                 else agent_validation.final_recommendation
             )
         )
@@ -540,18 +561,45 @@ class CrewManager:
             return "medium"
         return plan.complexity
 
+    @staticmethod
+    def _infer_task_type(prompt: str, plan: PlanOutput) -> str:
+        """Normalize task type so build/code prompts stay implementation-focused."""
+        text = " ".join(
+            [
+                prompt,
+                *plan.requirements,
+                *plan.execution_steps,
+            ]
+        ).lower()
+        tokens = set(re.findall(r"[a-zA-Z]{3,}", text))
+        if (
+            tokens.intersection(CODE_TASK_HINTS)
+            and any(action in tokens for action in {"build", "create", "implement", "write"})
+        ):
+            return "code_generation"
+        return plan.task_type
+
     def _normalize_plan(self, prompt: str, plan: PlanOutput) -> PlanOutput:
-        """Normalize plan complexity so routing is stable across model outputs."""
+        """Normalize plan routing fields so downstream behavior is stable."""
         inferred_complexity = self._infer_complexity(prompt, plan)
+        inferred_task_type = self._infer_task_type(prompt, plan)
         complexity_order = {"simple": 0, "medium": 1, "complex": 2}
         final_complexity = max(
             plan.complexity,
             inferred_complexity,
             key=lambda value: complexity_order[value],
         )
-        if final_complexity == plan.complexity:
+        if (
+            final_complexity == plan.complexity
+            and inferred_task_type == plan.task_type
+        ):
             return plan
-        return plan.model_copy(update={"complexity": final_complexity})
+        return plan.model_copy(
+            update={
+                "complexity": final_complexity,
+                "task_type": inferred_task_type,
+            }
+        )
 
     def run(self, user_prompt: str) -> Dict[str, Any]:
         """Execute the sequential CrewAI pipeline with Phase 3 routing."""
@@ -588,9 +636,6 @@ class CrewManager:
                 research,
                 architect_agent,
             )
-        effective_requirements = (
-            research.requirements if research is not None and research.requirements else plan.requirements
-        )
         implementation = self._run_executor(
             sanitized_prompt,
             plan,
@@ -600,7 +645,7 @@ class CrewManager:
         )
         review = self._run_reviewer(sanitized_prompt, implementation, reviewer_agent)
         local_validation, utility_findings = self._build_local_validation(
-            effective_requirements,
+            plan.requirements,
             implementation,
             review,
         )
@@ -621,24 +666,24 @@ class CrewManager:
                 local_validation,
                 attempt_number=fix_attempts,
                 fixer_agent=fixer_agent,
-                requirements=effective_requirements,
+                requirements=plan.requirements,
                 research=research,
                 design=design,
             )
             review = self._run_reviewer(sanitized_prompt, implementation, reviewer_agent)
             local_validation, utility_findings = self._build_local_validation(
-                effective_requirements,
+                plan.requirements,
                 implementation,
                 review,
             )
 
         validation = self._merge_validation_reports(
-            effective_requirements,
+            plan.requirements,
             review,
             local_validation,
             self._run_validator(
                 sanitized_prompt,
-                effective_requirements,
+                plan.requirements,
                 implementation,
                 review,
                 utility_findings,
@@ -664,23 +709,23 @@ class CrewManager:
                 validation,
                 attempt_number=fix_attempts,
                 fixer_agent=fixer_agent,
-                requirements=effective_requirements,
+                requirements=plan.requirements,
                 research=research,
                 design=design,
             )
             review = self._run_reviewer(sanitized_prompt, implementation, reviewer_agent)
             local_validation, utility_findings = self._build_local_validation(
-                effective_requirements,
+                plan.requirements,
                 implementation,
                 review,
             )
             validation = self._merge_validation_reports(
-                effective_requirements,
+                plan.requirements,
                 review,
                 local_validation,
                 self._run_validator(
                     sanitized_prompt,
-                    effective_requirements,
+                    plan.requirements,
                     implementation,
                     review,
                     utility_findings,
