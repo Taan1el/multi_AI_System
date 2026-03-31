@@ -14,30 +14,31 @@ Phase 1 includes:
 
 ```text
 multi-agent-system/
-├── agents/
-│   ├── __init__.py
-│   ├── base_agent.py
-│   ├── planner.py
-│   ├── executor.py
-│   └── reviewer.py
-├── schemas/
-│   ├── __init__.py
-│   ├── plan.py
-│   ├── implementation.py
-│   └── review.py
-├── orchestrator/
-│   ├── __init__.py
-│   └── crew_manager.py
-├── config/
-│   ├── __init__.py
-│   └── models.yaml
-├── utils/
-│   ├── __init__.py
-│   └── logger.py
-├── main.py
-├── requirements.txt
-├── .gitignore
-└── README.md
+|-- agents/
+|   |-- __init__.py
+|   |-- base_agent.py
+|   |-- planner.py
+|   |-- executor.py
+|   `-- reviewer.py
+|-- schemas/
+|   |-- __init__.py
+|   |-- plan.py
+|   |-- implementation.py
+|   `-- review.py
+|-- orchestrator/
+|   |-- __init__.py
+|   `-- crew_manager.py
+|-- config/
+|   |-- __init__.py
+|   `-- models.yaml
+|-- utils/
+|   |-- __init__.py
+|   `-- logger.py
+|-- examples/
+|-- main.py
+|-- requirements.txt
+|-- .gitignore
+`-- README.md
 ```
 
 ## Prerequisites
@@ -77,11 +78,27 @@ The command:
 3. passes the validated implementation to the Reviewer agent
 4. saves the final result to `output.json`
 
+The CLI now validates prompts before the crew runs. Non-actionable prompts are rejected with a valid JSON error payload instead of generating fake work.
+
 You can also choose a custom output path:
 
 ```powershell
 python main.py "Create a hello world function" --output artifacts\phase1-output.json
 ```
+
+## Example prompts
+
+These prompts have been tested against the Phase 1 pipeline:
+
+- `Create a Python function that reverses a string`
+- `Build a Python class for a simple todo list with add, remove, and list methods`
+- `Write a short Python script that reads a text file and counts the number of lines`
+
+Saved example outputs:
+
+- `examples/basic_test_output.json`
+- `examples/medium_test_output.json`
+- `examples/edge_case_output.json`
 
 ## Configuration
 
@@ -104,16 +121,68 @@ If you want to use environment overrides, create a local `.env` file in the proj
 
 The CLI writes a JSON document with:
 
+- a `status` field set to `completed` or `rejected`
 - the original prompt
 - model metadata
 - planner output
 - executor output
 - reviewer output
 - an `approved` boolean for quick downstream checks
+- an `error` object when the prompt is rejected or a handled pipeline error occurs
+
+Typical successful output:
+
+```json
+{
+  "status": "completed",
+  "prompt": "Create a Python function that reverses a string",
+  "model": {
+    "provider": "ollama",
+    "name": "llama3.2:3b",
+    "base_url": "http://localhost:11434"
+  },
+  "plan": {},
+  "implementation": {},
+  "review": {},
+  "approved": true
+}
+```
+
+Typical rejected output:
+
+```json
+{
+  "status": "rejected",
+  "prompt": "invalid gibberish prompt xyz123",
+  "model": {
+    "provider": "ollama",
+    "name": "llama3.2:3b",
+    "base_url": "http://localhost:11434"
+  },
+  "plan": null,
+  "implementation": null,
+  "review": null,
+  "approved": false,
+  "error": {
+    "type": "invalid_prompt",
+    "message": "Prompt does not describe a clear task."
+  }
+}
+```
+
+## Troubleshooting
+
+- If you see `Pipeline failed` with a connection error, make sure Ollama is installed and running on `http://localhost:11434`.
+- If the default model is missing, run `ollama pull llama3.2:3b`.
+- If a prompt is rejected, rewrite it as a concrete request starting with words like `Create`, `Build`, `Write`, `Explain`, or `Analyze`.
+- If the reviewer returns `needs_revision`, that is expected behavior for imperfect implementations. The review report is meant to surface quality gaps before you use the generated files.
+- Generated file artifacts must use safe relative paths. Absolute paths and parent-directory traversal are rejected during schema validation.
 
 ## Development notes
 
 - All three agent outputs are validated with Pydantic models.
 - The CrewAI process is sequential.
 - The system expects JSON-only agent responses and performs defensive parsing before validation.
+- The CLI rejects vague prompts before invoking the agents and returns a valid JSON rejection result.
+- Implementation artifacts are validated to ensure file paths are safe relative paths.
 - Imports use package-style `__init__.py` files so the project runs as standard Python modules.
