@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Multi AI Orchestrator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <nav class="view-nav fade-in" aria-label="Workspace views">
+        <a class="view-link" href="/">Prompt Library</a>
+        <a class="view-link active" href="/orchestrator">Orchestrator</a>
+      </nav>
+
+      <header class="masthead fade-in">
+        <div class="masthead-copy">
+          <p class="eyebrow">Hybrid run control</p>
+          <h1>Multi AI Orchestrator</h1>
+          <p class="lede">
+            Launch one prompt into a local-first run, mix in cloud providers when credentials exist,
+            and inspect the full plan-to-review pipeline from one dashboard.
+          </p>
+        </div>
+        <div class="masthead-meta">
+          <span>Local + optional cloud</span>
+          <span>Queued run history</span>
+          <span>Live stage updates</span>
+        </div>
+      </header>
+
+      <main class="dashboard">
+        <section class="stack-panel slide-up">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Launch</p>
+              <h2>New run</h2>
+            </div>
+          </div>
+
+          <form id="orchestratorForm" class="editor-form">
+            <label class="field">
+              <span>Prompt template</span>
+              <select id="promptTemplateSelect" class="select-input">
+                <option value="">Start from scratch</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Prompt</span>
+              <textarea
+                id="orchestratorPromptInput"
+                rows="8"
+                placeholder="Describe the task you want the manager, architect, code, and review agents to handle."
+                required
+              ></textarea>
+            </label>
+
+            <div class="inline-grid">
+              <label class="field">
+                <span>Preset</span>
+                <select id="presetSelect" class="select-input"></select>
+              </label>
+
+              <div class="field">
+                <span>Workspace sync</span>
+                <label class="checkbox-row" for="workspaceSyncInput">
+                  <input id="workspaceSyncInput" type="checkbox" checked />
+                  <span>Write plan, architecture, tasks, review, and active context back into the repo</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="inline-grid">
+              <div class="field">
+                <span>Enable web search</span>
+                <label class="checkbox-row" for="webSearchInput">
+                  <input id="webSearchInput" type="checkbox" />
+                  <span>Use the optional search bridge when configured</span>
+                </label>
+              </div>
+
+              <label class="field">
+                <span>Reference URLs</span>
+                <textarea
+                  id="referenceUrlsInput"
+                  rows="3"
+                  placeholder="https://example.com/doc-1&#10;https://example.com/doc-2"
+                ></textarea>
+              </label>
+            </div>
+
+            <div class="role-override-grid">
+              <label class="field">
+                <span>Manager override</span>
+                <select id="managerOverrideSelect" class="select-input"></select>
+              </label>
+              <label class="field">
+                <span>Architect override</span>
+                <select id="architectOverrideSelect" class="select-input"></select>
+              </label>
+              <label class="field">
+                <span>Code override</span>
+                <select id="codeOverrideSelect" class="select-input"></select>
+              </label>
+              <label class="field">
+                <span>Review override</span>
+                <select id="reviewOverrideSelect" class="select-input"></select>
+              </label>
+            </div>
+
+            <div class="form-actions">
+              <button id="startRunButton" class="primary-button" type="submit">Start run</button>
+              <button id="clearRunFormButton" class="ghost-button" type="button">Clear</button>
+            </div>
+          </form>
+
+          <div class="detail-strip">
+            <div>
+              <span class="detail-label">Available presets</span>
+              <p id="presetMeta">Loading...</p>
+            </div>
+            <div>
+              <span class="detail-label">Available profiles</span>
+              <p id="profileMeta">Loading...</p>
+            </div>
+            <div>
+              <span class="detail-label">Status</span>
+              <p id="dashboardStatusMessage">Ready</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="stack-panel slide-up">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">History</p>
+              <h2 id="runCount">0 runs</h2>
+            </div>
+            <button id="refreshRunsButton" class="ghost-button" type="button">Refresh</button>
+          </div>
+
+          <div id="runList" class="run-list" aria-live="polite"></div>
+        </section>
+
+        <section class="stack-panel slide-up detail-panel-wide">
+          <div class="panel-header">
+            <div>
+              <p class="section-label">Details</p>
+              <h2 id="runHeading">Select a run</h2>
+            </div>
+            <div id="runStatusPill" class="status-pill">Idle</div>
+          </div>
+
+          <div class="detail-strip">
+            <div>
+              <span class="detail-label">Preset</span>
+              <p id="runPresetMeta">-</p>
+            </div>
+            <div>
+              <span class="detail-label">Profiles</span>
+              <p id="runProfilesMeta">-</p>
+            </div>
+            <div>
+              <span class="detail-label">Updated</span>
+              <p id="runUpdatedMeta">-</p>
+            </div>
+          </div>
+
+          <div id="stageGrid" class="stage-grid"></div>
+
+          <div class="artifact-toolbar">
+            <label class="field compact-field">
+              <span>Artifact</span>
+              <select id="artifactSelect" class="select-input">
+                <option value="">Choose an artifact</option>
+              </select>
+            </label>
+          </div>
+
+          <pre id="artifactViewer" class="artifact-viewer">No artifact selected.</pre>
+
+          <div class="panel-header compact-header">
+            <div>
+              <p class="section-label">Logs</p>
+              <h2>Run log</h2>
+            </div>
+          </div>
+          <div id="logList" class="log-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/orchestrator.js"></script>
+  </body>
+</html>

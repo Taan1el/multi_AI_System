@@ -2,6 +2,7 @@ const express = require("express");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
+const { createOrchestrator } = require("./orchestrator");
 
 const app = express();
 const port = Number(process.env.PORT) || 3000;
@@ -10,6 +11,8 @@ const appRoot = __dirname;
 const publicDir = path.join(appRoot, "public");
 const dataDir = path.join(appRoot, "data");
 const dataFile = path.join(dataDir, "prompts.json");
+const repoRoot = path.resolve(appRoot, "..");
+const orchestrator = createOrchestrator({ repoRoot, appRoot });
 
 const seedPrompts = [
   {
@@ -71,6 +74,25 @@ function parseTags(input) {
 function normalizeDate(value) {
   const date = value ? new Date(value) : new Date();
   return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+}
+
+function parseReferenceUrls(input) {
+  if (Array.isArray(input)) {
+    return [...new Set(input.map((value) => String(value).trim()).filter(Boolean))];
+  }
+
+  if (typeof input === "string") {
+    return [
+      ...new Set(
+        input
+          .split(/\r?\n|,/)
+          .map((value) => value.trim())
+          .filter(Boolean),
+      ),
+    ];
+  }
+
+  return [];
 }
 
 function normalizePrompt(prompt) {
@@ -255,9 +277,128 @@ app.get("/api/health", (_request, response) => {
   response.json({ status: "ok" });
 });
 
+app.get("/orchestrator", (_request, response) => {
+  response.sendFile(path.join(publicDir, "orchestrator.html"));
+});
+
+app.get("/api/orchestrator/config", async (_request, response, next) => {
+  try {
+    const [profiles, presets, config] = await Promise.all([
+      orchestrator.listProfiles(),
+      orchestrator.listPresets(),
+      orchestrator.loadConfig(),
+    ]);
+
+    response.json({
+      profiles,
+      presets,
+      roles: ["manager", "architect", "code", "review"],
+      features: config.features,
+      defaultPreset: "local",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/orchestrator/runs", async (_request, response, next) => {
+  try {
+    const runs = await orchestrator.listRuns();
+    response.json({ runs });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/orchestrator/runs/:id", async (request, response, next) => {
+  try {
+    const run = await orchestrator.getRun(request.params.id);
+
+    if (!run) {
+      response.status(404).json({ message: "Run not found." });
+      return;
+    }
+
+    response.json({ run });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/orchestrator/runs/:id/events", async (request, response, next) => {
+  try {
+    const run = await orchestrator.getRun(request.params.id, { includeArtifacts: false });
+
+    if (!run) {
+      response.status(404).json({ message: "Run not found." });
+      return;
+    }
+
+    response.setHeader("Content-Type", "text/event-stream");
+    response.setHeader("Cache-Control", "no-cache, no-transform");
+    response.setHeader("Connection", "keep-alive");
+    response.flushHeaders?.();
+
+    const sendEvent = (payload) => {
+      response.write(`data: ${JSON.stringify(payload)}\n\n`);
+    };
+
+    sendEvent({ type: "snapshot", run });
+
+    const keepAlive = setInterval(() => {
+      response.write(": keep-alive\n\n");
+    }, 15000);
+
+    const unsubscribe = orchestrator.subscribe(request.params.id, (update) => {
+      sendEvent({ type: "update", run: update });
+    });
+
+    request.on("close", () => {
+      clearInterval(keepAlive);
+      unsubscribe();
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/orchestrator/runs", async (request, response, next) => {
+  try {
+    const prompt = typeof request.body.prompt === "string" ? request.body.prompt.trim() : "";
+
+    if (!prompt) {
+      response.status(400).json({ message: "Prompt is required." });
+      return;
+    }
+
+    const preset = typeof request.body.preset === "string" ? request.body.preset.trim() : "local";
+    const roleOverrides =
+      request.body.roleOverrides && typeof request.body.roleOverrides === "object"
+        ? Object.fromEntries(
+            Object.entries(request.body.roleOverrides).filter(([, value]) => {
+              return typeof value === "string" && value.trim();
+            }),
+          )
+        : {};
+
+    const run = await orchestrator.startRun({
+      prompt,
+      preset,
+      workspaceSync: Boolean(request.body.workspaceSync),
+      enableWebSearch: Boolean(request.body.enableWebSearch),
+      referenceUrls: parseReferenceUrls(request.body.referenceUrls),
+      roleOverrides,
+    });
+
+    response.status(201).json({ run });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.use((error, _request, response, _next) => {
   console.error(error);
-  response.status(500).json({ message: "Something went wrong while handling the prompt library." });
+  response.status(500).json({ message: "Something went wrong while handling the multi AI workspace." });
 });
 
 app.listen(port, async () => {
