@@ -4,6 +4,7 @@ from .base_agent import BasePhaseAgent, ModelSettings
 from .executor import ExecutorAgent
 from .planner import PlannerAgent
 from .reviewer import ReviewerAgent
+from .validator import ValidatorAgent
 
 __all__ = [
     "BasePhaseAgent",
@@ -11,4 +12,5 @@ __all__ = [
     "ModelSettings",
     "PlannerAgent",
     "ReviewerAgent",
+    "ValidatorAgent",
 ]
