@@ -1,10 +1,10 @@
 # Workflow
 
-1. Start a new Roo chat in this repository and switch to `Flow Orchestrator`.
-2. `Flow Orchestrator` uses `Local Manager` to break the prompt into planning, architecture, coding, debug, and review work.
-3. `plan.md` defines intent, scope, and constraints.
-4. `architecture.md` captures design and structure.
-5. `tasks.json` tracks execution-ready tasks.
-6. `Flow Code` uses `Local Code` to implement work in `04_code`.
-7. `Flow Ask` or `Flow Architect` uses `Local Research` for explanation, analysis, and review.
-8. Update `review.md` and the `memory-bank`, then loop until complete.
+1. Run `npm run multi-ai -- "your task"` to fan one prompt out across the local models.
+2. `Local Manager` creates the orchestration brief and `plan.md`.
+3. `Local Research` generates `architecture.md`.
+4. `Local Manager` produces `tasks.json`.
+5. `Local Code` writes the implementation handoff.
+6. `Local Research` writes `review.md`.
+7. The runner syncs the Roo workspace files and stores the full run under `output/multi-ai-runs/`.
+8. Continue in Roo with `Flow Orchestrator`, `Flow Code`, `Flow Ask`, or `Flow Architect` until the task is complete.

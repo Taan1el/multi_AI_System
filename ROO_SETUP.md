@@ -54,6 +54,33 @@ The bootstrap does the following:
 5. Verifies Roo, Ollama, the imported config file, and the required models.
 6. Opens this repository in VS Code.
 
+## One prompt -> multiple local AIs
+
+Once setup is complete, this repo can act as the single entrypoint for a multi-model run.
+
+Use:
+
+```powershell
+npm run multi-ai -- "Build a local-first task manager with search and keyboard shortcuts"
+```
+
+That command runs this local pipeline:
+
+1. `Local Manager` creates the orchestration brief and planning pass.
+2. `Local Research` writes architecture.
+3. `Local Manager` turns the plan into structured tasks.
+4. `Local Code` writes the implementation handoff.
+5. `Local Research` reviews the proposed direction.
+6. The run is saved under `output/multi-ai-runs/` and the Roo workspace files are updated.
+
+If you want the run without overwriting the current workspace files:
+
+```powershell
+npm run multi-ai -- --no-workspace-sync "Build a local-first task manager with search and keyboard shortcuts"
+```
+
+You can also run the same flow from VS Code with the workspace task `Run Multi-AI Orchestration`.
+
 ## Individual commands
 
 You can also run the pieces separately:
@@ -72,6 +99,7 @@ powershell -ExecutionPolicy Bypass -File scripts/verify-roo-local.ps1
 4. Start a new Roo chat in this repo.
 5. Switch to `Flow Orchestrator` for new work.
 6. Let the orchestrator route work to `Flow Architect`, `Flow Code`, `Flow Debug`, or `Flow Ask`.
+7. Or run `npm run multi-ai -- "your task"` first, then continue the generated workspace in Roo.
 
 ## Workflow contract in this repo
 

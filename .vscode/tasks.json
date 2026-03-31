@@ -1,5 +1,12 @@
 {
   "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "multiAiPrompt",
+      "type": "promptString",
+      "description": "Enter the task prompt for the local multi-model run"
+    }
+  ],
   "tasks": [
     {
       "label": "Bootstrap Roo Local",
@@ -34,6 +41,18 @@
         "Bypass",
         "-File",
         "scripts/verify-roo-local.ps1"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Multi-AI Orchestration",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "multi-ai",
+        "--",
+        "${input:multiAiPrompt}"
       ],
       "problemMatcher": []
     }
