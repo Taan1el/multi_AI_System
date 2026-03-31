@@ -2,11 +2,11 @@
 
 ## Purpose
 
-This repository is configured for a local-first Roo Code workflow on the home PC.
+This repository is configured for a local-first Roo Code workflow on the home PC, with an optional cloud bridge layered on top.
 
 - Roo Code is the orchestration surface.
-- Ollama provides the local models.
-- No paid Roo cloud workflow is required for v1.
+- Ollama provides the default local models.
+- Cloud providers are optional and only activate when credentials exist.
 - The Codex desktop app is not the primary orchestrator in this setup.
 
 ## Local profiles
@@ -54,24 +54,22 @@ The bootstrap does the following:
 5. Verifies Roo, Ollama, the imported config file, and the required models.
 6. Opens this repository in VS Code.
 
-## One prompt -> multiple local AIs
+## One prompt -> multiple AIs
 
-Once setup is complete, this repo can act as the single entrypoint for a multi-model run.
-
-Use:
+Use the CLI for a single prompt orchestration run:
 
 ```powershell
 npm run multi-ai -- "Build a local-first task manager with search and keyboard shortcuts"
 ```
 
-That command runs this local pipeline:
+That local pipeline does this:
 
 1. `Local Manager` creates the orchestration brief and planning pass.
 2. `Local Research` writes architecture.
-3. `Local Manager` turns the plan into structured tasks.
-4. `Local Code` writes the implementation handoff.
-5. `Local Research` reviews the proposed direction.
-6. The run is saved under `output/multi-ai-runs/` and the Roo workspace files are updated.
+3. `Local Code` writes the implementation handoff.
+4. `Local Manager` synthesizes deterministic tasks.
+5. `Local Research` reviews the pass.
+6. The run is saved under `output/multi-ai-runs/` and the Roo workspace files can be updated.
 
 If you want the run without overwriting the current workspace files:
 
@@ -79,17 +77,45 @@ If you want the run without overwriting the current workspace files:
 npm run multi-ai -- --no-workspace-sync "Build a local-first task manager with search and keyboard shortcuts"
 ```
 
-You can also run the same flow from VS Code with the workspace task `Run Multi-AI Orchestration`.
+## Hybrid cloud bridge
 
-## Individual commands
+The repo also supports a hybrid preset. Add keys to `.env` only for the providers you want:
 
-You can also run the pieces separately:
+- `ANTHROPIC_API_KEY`
+- `OPENAI_API_KEY`
+- `GEMINI_API_KEY`
+- `OPENROUTER_API_KEY`
+- `OLLAMA_API_KEY`
+
+Then run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/install-ollama-models.ps1
-powershell -ExecutionPolicy Bypass -File scripts/configure-roo-local.ps1 -OpenVSCode
-powershell -ExecutionPolicy Bypass -File scripts/verify-roo-local.ps1
+npm run multi-ai -- --preset hybrid "Build a local-first task manager with search and keyboard shortcuts"
 ```
+
+The hybrid preset prefers cloud profiles per role and falls back automatically when a key is missing.
+
+## Dashboard
+
+Start the app:
+
+```powershell
+npm start
+```
+
+Open:
+
+- `http://localhost:3000`
+- `http://localhost:3000/orchestrator`
+
+The dashboard gives you:
+
+- prompt templates from the Prompt Library
+- local or hybrid preset selection
+- per-role profile overrides
+- run history
+- live stage updates
+- artifacts and logs
 
 ## Starting a RooFlow task
 
@@ -110,9 +136,20 @@ powershell -ExecutionPolicy Bypass -File scripts/verify-roo-local.ps1
 - `05_reviews` stores findings and follow-up items.
 - `memory-bank` stores persistent project context between chats.
 
-## Limits for v1
+## Optional Codex and Roo snippets
 
-- No paid Claude, Gemini, OpenAI, or Roo cloud providers are required.
-- No plugin or bridge service is included yet.
+Generate example integration snippets with:
+
+```powershell
+npm run snippets:bridge
+```
+
+That writes example files into `output/integration-snippets/`.
+
+## Limits for the current version
+
+- The local workflow is the default and works with zero paid provider keys.
+- Cloud support is optional, not required.
 - No automatic handoff from the Codex desktop app to Roo is included.
-- If the local workflow feels too manual later, build a local bridge in phase 2.
+- The Codex/Ollama bridge in this repo is config-driven and snippet-based, not a full custom plugin.
+- If you want deeper client integration later, the next step is a dedicated bridge or plugin layer.

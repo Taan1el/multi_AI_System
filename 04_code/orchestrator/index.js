@@ -17,6 +17,11 @@ const DEFAULT_CONFIG = {
       apiKeyEnv: "OLLAMA_API_KEY",
       maxResults: 3,
     },
+    webFetch: {
+      enabled: true,
+      apiUrl: "https://ollama.com/api/web_fetch",
+      apiKeyEnv: "OLLAMA_API_KEY",
+    },
     urlContext: {
       enabled: true,
       maxUrls: 3,
@@ -1040,6 +1045,17 @@ function createOrchestrator(options = {}) {
     return { available: true, reason: "Configured" }
   }
 
+  function getProfileCapabilities(profile, config) {
+    const apiKeyEnv = config.features.webSearch.apiKeyEnv
+    return {
+      textGeneration: true,
+      streaming: false,
+      toolCalling: ["ollama", "openai", "openai-compatible", "gemini"].includes(profile.type),
+      search: Boolean(config.features.webSearch.enabled && process.env[apiKeyEnv]),
+      urlContext: Boolean(config.features.urlContext.enabled),
+    }
+  }
+
   async function listProfiles() {
     const config = await loadConfig()
     return Object.entries(config.profiles).map(([name, profile]) => {
@@ -1051,6 +1067,7 @@ function createOrchestrator(options = {}) {
         model: profile.model,
         available: availability.available,
         reason: availability.reason,
+        capabilities: getProfileCapabilities(profile, config),
       }
     })
   }
@@ -1104,6 +1121,55 @@ function createOrchestrator(options = {}) {
     return [...new Set(String(input || "").match(/https?:\/\/[^\s)]+/g) || [])]
   }
 
+  function cleanFetchedText(content, maxChars) {
+    return String(content || "")
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, maxChars)
+  }
+
+  async function performWebFetch(url, config) {
+    const fetchConfig = config.features.webFetch
+    const maxChars = config.features.urlContext.maxCharsPerUrl || 4000
+
+    if (!fetchConfig?.enabled) {
+      return null
+    }
+
+    const apiKey = process.env[fetchConfig.apiKeyEnv]
+    if (!apiKey) {
+      return null
+    }
+
+    try {
+      const response = await fetch(fetchConfig.apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ url }),
+        signal: AbortSignal.timeout(10000),
+      })
+
+      if (!response.ok) {
+        return null
+      }
+
+      const payload = await response.json()
+      return {
+        url,
+        title: payload.title || "",
+        content: cleanFetchedText(payload.content || "", maxChars),
+      }
+    } catch {
+      return null
+    }
+  }
+
   async function fetchUrlContext(urls, config) {
     if (!config.features.urlContext.enabled || urls.length === 0) {
       return []
@@ -1114,18 +1180,18 @@ function createOrchestrator(options = {}) {
 
     for (const url of limited) {
       try {
+        const fetched = await performWebFetch(url, config)
+        if (fetched?.content) {
+          entries.push(fetched)
+          continue
+        }
+
         const response = await fetch(url, {
           signal: AbortSignal.timeout(10000),
           headers: { "User-Agent": "multi-ai-system/1.0" },
         })
         const body = await response.text()
-        const text = body
-          .replace(/<script[\s\S]*?<\/script>/gi, " ")
-          .replace(/<style[\s\S]*?<\/style>/gi, " ")
-          .replace(/<[^>]+>/g, " ")
-          .replace(/\s+/g, " ")
-          .trim()
-          .slice(0, config.features.urlContext.maxCharsPerUrl || 4000)
+        const text = cleanFetchedText(body, config.features.urlContext.maxCharsPerUrl || 4000)
 
         entries.push({ url, content: text })
       } catch (error) {

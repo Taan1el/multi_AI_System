@@ -8,6 +8,7 @@
     "start": "node 04_code/server.js",
     "test": "echo \"No automated tests configured yet\"",
     "multi-ai": "node scripts/run-multi-ai.js",
+    "snippets:bridge": "node scripts/print-bridge-snippets.js",
     "setup:roo-local": "powershell -ExecutionPolicy Bypass -File scripts/bootstrap-home-pc.ps1",
     "setup:roo-config": "powershell -ExecutionPolicy Bypass -File scripts/configure-roo-local.ps1",
     "setup:ollama": "powershell -ExecutionPolicy Bypass -File scripts/install-ollama-models.ps1",

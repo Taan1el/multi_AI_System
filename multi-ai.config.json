@@ -11,6 +11,11 @@
       "apiKeyEnv": "OLLAMA_API_KEY",
       "maxResults": 3
     },
+    "webFetch": {
+      "enabled": true,
+      "apiUrl": "https://ollama.com/api/web_fetch",
+      "apiKeyEnv": "OLLAMA_API_KEY"
+    },
     "urlContext": {
       "enabled": true,
       "maxUrls": 3,

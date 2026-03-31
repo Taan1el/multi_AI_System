@@ -1,13 +1,15 @@
 # Active Context
 
 ## Current Focus
-- Use the completed local-first Roo Code + Ollama setup as the default home-PC workflow.
+- Use the hybrid local-plus-cloud orchestrator as the main entrypoint for one-prompt multi-AI runs on the home PC.
 
 ## Recent Changes
-- Replaced the old Claude/Codex wording in the project workflow with local Roo + Ollama profile mappings.
-- Added repo-owned Roo import settings and bootstrap scripts for the home-PC setup.
-- Preserved the Prompt Library app in `04_code` as a practical local workflow target.
-- Installed Ollama locally, pulled the required models, and verified Roo state, profile metadata, and mode mapping.
+- Added a provider-agnostic orchestration core with local and hybrid presets.
+- Added an Express-backed orchestration dashboard at `/orchestrator` with run history, stage status, artifacts, and logs.
+- Added optional Ollama `web_search` and `web_fetch` augmentation support when `OLLAMA_API_KEY` is configured.
+- Added generated Codex and Roo integration snippets for the Ollama search bridge.
+- Preserved the Prompt Library app as the prompt source and launch surface for orchestration runs.
 
 ## Open Questions
-- Whether phase 2 should stay manual with Roo mode switching or add a local bridge service for automatic worker dispatch.
+- Whether phase 2 should add a custom plugin or bridge service for deeper automatic client handoff.
+- Whether future iterations should add provider-native search grounding and URL context for Gemini-specific runs.
