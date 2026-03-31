@@ -2,6 +2,7 @@
 
 from .base_agent import BasePhaseAgent, ModelSettings
 from .executor import ExecutorAgent
+from .fixer import FixerAgent
 from .planner import PlannerAgent
 from .reviewer import ReviewerAgent
 from .validator import ValidatorAgent
@@ -9,6 +10,7 @@ from .validator import ValidatorAgent
 __all__ = [
     "BasePhaseAgent",
     "ExecutorAgent",
+    "FixerAgent",
     "ModelSettings",
     "PlannerAgent",
     "ReviewerAgent",
