@@ -1,0 +1,5 @@
+crewai
+crewai-tools
+pydantic
+pyyaml
+python-dotenv
