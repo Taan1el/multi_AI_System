@@ -1,7 +1,8 @@
-"""Schema exports for the Phase 1 multi-agent pipeline."""
+"""Schema exports for the multi-agent pipeline."""
 
 from .implementation import Implementation
 from .plan import PlanOutput
 from .review import ReviewReport
+from .validation import ValidationReport
 
-__all__ = ["Implementation", "PlanOutput", "ReviewReport"]
+__all__ = ["Implementation", "PlanOutput", "ReviewReport", "ValidationReport"]
