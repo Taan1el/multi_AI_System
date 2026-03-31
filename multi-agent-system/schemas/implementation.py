@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import PurePosixPath
 from typing import Dict, List
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -40,6 +41,15 @@ class Implementation(BaseModel):
                 raise ValueError(
                     "Each file entry must include non-empty 'path' and 'content' values."
                 )
+            normalized_path = path.replace("\\", "/")
+            pure_path = PurePosixPath(normalized_path)
+            if pure_path.is_absolute() or ".." in pure_path.parts:
+                raise ValueError(
+                    "File paths must be safe relative paths without drive letters, "
+                    "leading slashes, or parent-directory traversal."
+                )
+            if pure_path.name in {"", ".", ".."}:
+                raise ValueError("File paths must point to a concrete file name.")
             validated_files.append({"path": path, "content": content})
         return validated_files
 
