@@ -1,10 +1,35 @@
-default:
+planner:
   provider: ollama
   model: llama3.2:3b
   base_url: http://localhost:11434
-  temperature: 0.1
-code_specialist:
+  temperature: 0.3
+researcher:
+  provider: ollama
+  model: llama3.2:3b
+  base_url: http://localhost:11434
+  temperature: 0.5
+architect:
   provider: ollama
   model: qwen2.5-coder:7b
+  base_url: http://localhost:11434
+  temperature: 0.3
+executor:
+  provider: ollama
+  model: qwen2.5-coder:7b
+  base_url: http://localhost:11434
+  temperature: 0.2
+reviewer:
+  provider: ollama
+  model: llama3.2:3b
+  base_url: http://localhost:11434
+  temperature: 0.4
+fixer:
+  provider: ollama
+  model: qwen2.5-coder:7b
+  base_url: http://localhost:11434
+  temperature: 0.2
+validator:
+  provider: ollama
+  model: llama3.2:3b
   base_url: http://localhost:11434
   temperature: 0.1

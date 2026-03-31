@@ -38,28 +38,6 @@ from utils import (
 
 LOGGER = logging.getLogger(__name__)
 MAX_FIX_ATTEMPTS = 2
-CODE_PROMPT_HINTS = {
-    "api",
-    "app",
-    "application",
-    "bug",
-    "class",
-    "cli",
-    "code",
-    "crawler",
-    "debug",
-    "function",
-    "implementation",
-    "library",
-    "program",
-    "python",
-    "refactor",
-    "script",
-    "scraper",
-    "service",
-    "tool",
-    "web",
-}
 ACTION_WORDS = {
     "add",
     "analyze",
@@ -140,61 +118,86 @@ class PromptValidationError(ValueError):
 class CrewManager:
     """Manage the Phase 3 AI pipeline with routing, repair, and validation."""
 
-    def __init__(
-        self,
-        model_settings: ModelSettings,
-        code_model_settings: ModelSettings | None = None,
-    ) -> None:
-        self.model_settings = model_settings
-        self.code_model_settings = code_model_settings or model_settings
-        self.default_agents = self._build_agent_set(self.model_settings)
-        self.code_agents = self._build_agent_set(self.code_model_settings)
+    def __init__(self, agent_settings: Dict[str, ModelSettings]) -> None:
+        self.agent_settings = agent_settings
+        self.model_settings = agent_settings["planner"]
+        self.agents = self._build_agent_set(agent_settings)
 
     @staticmethod
-    def _build_agent_set(model_settings: ModelSettings) -> Dict[str, Any]:
-        """Create a consistent set of agent wrappers for a model profile."""
+    def _build_agent_set(agent_settings: Dict[str, ModelSettings]) -> Dict[str, Any]:
+        """Create the configured agent wrappers for each pipeline stage."""
         return {
-            "planner": PlannerAgent(model_settings),
-            "researcher": ResearcherAgent(model_settings),
-            "architect": ArchitectAgent(model_settings),
-            "executor": ExecutorAgent(model_settings),
-            "reviewer": ReviewerAgent(model_settings),
-            "fixer": FixerAgent(model_settings),
-            "validator": ValidatorAgent(model_settings),
+            "planner": PlannerAgent(agent_settings["planner"]),
+            "researcher": ResearcherAgent(agent_settings["researcher"]),
+            "architect": ArchitectAgent(agent_settings["architect"]),
+            "executor": ExecutorAgent(agent_settings["executor"]),
+            "reviewer": ReviewerAgent(agent_settings["reviewer"]),
+            "fixer": FixerAgent(agent_settings["fixer"]),
+            "validator": ValidatorAgent(agent_settings["validator"]),
         }
 
     @classmethod
-    def from_config(cls, config_path: Path, profile: str = "default") -> "CrewManager":
-        """Create a manager using YAML config with optional env overrides."""
-        configured = ModelSettings.from_yaml(config_path, profile=profile)
-        try:
-            configured_code = ModelSettings.from_yaml(
-                config_path, profile="code_specialist"
-            )
-        except ValueError:
-            configured_code = configured
+    def _resolve_agent_settings(
+        cls, config_path: Path, agent_name: str
+    ) -> ModelSettings:
+        """Load model settings for an agent, with Phase 2 fallback profiles."""
+        fallback_profiles = {
+            "planner": ("planner", "default"),
+            "researcher": ("researcher", "default"),
+            "architect": ("architect", "code_specialist", "default"),
+            "executor": ("executor", "code_specialist", "default"),
+            "reviewer": ("reviewer", "default"),
+            "fixer": ("fixer", "code_specialist", "default"),
+            "validator": ("validator", "default"),
+        }
+        configured: ModelSettings | None = None
+        for profile in fallback_profiles[agent_name]:
+            try:
+                configured = ModelSettings.from_yaml(config_path, profile=profile)
+                break
+            except ValueError:
+                continue
 
-        settings = ModelSettings(
-            provider=os.getenv("LLM_PROVIDER", configured.provider).strip(),
-            model=os.getenv("OLLAMA_MODEL", configured.model).strip(),
-            base_url=os.getenv("OLLAMA_BASE_URL", configured.base_url).strip(),
-            temperature=float(
-                os.getenv("LLM_TEMPERATURE", str(configured.temperature)).strip()
-            ),
-        )
-        code_settings = ModelSettings(
-            provider=os.getenv("LLM_CODE_PROVIDER", configured_code.provider).strip(),
-            model=os.getenv("OLLAMA_CODE_MODEL", configured_code.model).strip(),
+        if configured is None:
+            raise ValueError(
+                f"No model configuration found for agent '{agent_name}' in {config_path}."
+            )
+
+        env_prefix = agent_name.upper()
+        return ModelSettings(
+            provider=os.getenv(
+                f"{env_prefix}_PROVIDER",
+                os.getenv("LLM_PROVIDER", configured.provider),
+            ).strip(),
+            model=os.getenv(f"{env_prefix}_MODEL", configured.model).strip(),
             base_url=os.getenv(
-                "OLLAMA_CODE_BASE_URL", configured_code.base_url
+                f"{env_prefix}_BASE_URL",
+                os.getenv("OLLAMA_BASE_URL", configured.base_url),
             ).strip(),
             temperature=float(
                 os.getenv(
-                    "LLM_CODE_TEMPERATURE", str(configured_code.temperature)
+                    f"{env_prefix}_TEMPERATURE",
+                    str(configured.temperature),
                 ).strip()
             ),
         )
-        return cls(settings, code_model_settings=code_settings)
+
+    @classmethod
+    def from_config(cls, config_path: Path) -> "CrewManager":
+        """Create a manager using per-agent YAML config with env overrides."""
+        agent_settings = {
+            agent_name: cls._resolve_agent_settings(config_path, agent_name)
+            for agent_name in (
+                "planner",
+                "researcher",
+                "architect",
+                "executor",
+                "reviewer",
+                "fixer",
+                "validator",
+            )
+        }
+        return cls(agent_settings)
 
     @staticmethod
     def model_metadata(model_settings: ModelSettings) -> Dict[str, str]:
@@ -266,17 +269,6 @@ class CrewManager:
             )
 
         return sanitized_prompt
-
-    def _select_agents(self, user_prompt: str) -> tuple[Dict[str, Any], ModelSettings]:
-        """Pick the best local model family for the current prompt."""
-        prompt_tokens = set(re.findall(r"[a-zA-Z]{3,}", user_prompt.lower()))
-        use_code_specialist = (
-            self.code_model_settings.model != self.model_settings.model
-            and bool(prompt_tokens.intersection(CODE_PROMPT_HINTS))
-        )
-        if use_code_specialist:
-            return self.code_agents, self.code_model_settings
-        return self.default_agents, self.model_settings
 
     def _run_stage(self, tasks: list[Any], agents: list[Any]) -> None:
         """Run a sequential CrewAI stage with the supplied tasks and agents."""
@@ -564,18 +556,19 @@ class CrewManager:
     def run(self, user_prompt: str) -> Dict[str, Any]:
         """Execute the sequential CrewAI pipeline with Phase 3 routing."""
         sanitized_prompt = self.validate_prompt(user_prompt)
-        active_agents, active_model_settings = self._select_agents(sanitized_prompt)
-        planner_agent = active_agents["planner"]
-        researcher_agent = active_agents["researcher"]
-        architect_agent = active_agents["architect"]
-        executor_agent = active_agents["executor"]
-        reviewer_agent = active_agents["reviewer"]
-        fixer_agent = active_agents["fixer"]
-        validator_agent = active_agents["validator"]
+        planner_agent = self.agents["planner"]
+        researcher_agent = self.agents["researcher"]
+        architect_agent = self.agents["architect"]
+        executor_agent = self.agents["executor"]
+        reviewer_agent = self.agents["reviewer"]
+        fixer_agent = self.agents["fixer"]
+        validator_agent = self.agents["validator"]
 
         LOGGER.info(
-            "Starting sequential crew run with model %s",
-            active_model_settings.crewai_model,
+            "Starting sequential crew run with planner=%s executor=%s reviewer=%s",
+            self.agent_settings["planner"].crewai_model,
+            self.agent_settings["executor"].crewai_model,
+            self.agent_settings["reviewer"].crewai_model,
         )
         plan = self._normalize_plan(
             sanitized_prompt,
@@ -717,7 +710,7 @@ class CrewManager:
         return {
             "status": status,
             "prompt": sanitized_prompt,
-            "model": self.model_metadata(active_model_settings),
+            "model": self.model_metadata(self.model_settings),
             "plan": plan.model_dump(),
             "research": None if research is None else research.model_dump(),
             "design": None if design is None else design.model_dump(),
