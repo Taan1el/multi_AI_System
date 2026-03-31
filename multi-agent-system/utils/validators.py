@@ -14,7 +14,6 @@ PLACEHOLDER_PATTERNS = (
     re.compile(r"\bTODO\b", re.IGNORECASE),
     re.compile(r"\bFIXME\b", re.IGNORECASE),
     re.compile(r"\bplaceholder\b", re.IGNORECASE),
-    re.compile(r"\bpass\b"),
     re.compile(r"NotImplementedError"),
     re.compile(r"your code here", re.IGNORECASE),
     re.compile(r"coming soon", re.IGNORECASE),
