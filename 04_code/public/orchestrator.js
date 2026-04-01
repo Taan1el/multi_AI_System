@@ -1,5 +1,4 @@
 const state = {
-  prompts: [],
   config: null,
   runs: [],
   selectedRunId: null,
@@ -22,7 +21,6 @@ const elements = {
   presetMeta: document.querySelector("#presetMeta"),
   presetSelect: document.querySelector("#presetSelect"),
   profileMeta: document.querySelector("#profileMeta"),
-  promptTemplateSelect: document.querySelector("#promptTemplateSelect"),
   referenceUrlsInput: document.querySelector("#referenceUrlsInput"),
   refreshRunsButton: document.querySelector("#refreshRunsButton"),
   reviewOverrideSelect: document.querySelector("#reviewOverrideSelect"),
@@ -137,16 +135,6 @@ function renderConfig() {
   if (!searchReady) {
     elements.webSearchInput.checked = false
   }
-}
-
-function renderTemplateOptions() {
-  const options = ['<option value="">Start from scratch</option>']
-
-  for (const prompt of state.prompts) {
-    options.push(`<option value="${escapeHtml(prompt.id)}">${escapeHtml(prompt.title)}</option>`)
-  }
-
-  elements.promptTemplateSelect.innerHTML = options.join("")
 }
 
 function statusClassName(status) {
@@ -357,15 +345,9 @@ async function loadRuns() {
 }
 
 async function loadConfig() {
-  const [configResponse, promptsResponse] = await Promise.all([
-    request("/api/orchestrator/config"),
-    request("/api/prompts"),
-  ])
-
+  const configResponse = await request("/api/orchestrator/config")
   state.config = configResponse
-  state.prompts = promptsResponse.prompts
   renderConfig()
-  renderTemplateOptions()
 }
 
 function buildRoleOverridesPayload() {
@@ -378,7 +360,6 @@ function buildRoleOverridesPayload() {
 }
 
 function clearForm() {
-  elements.promptTemplateSelect.value = ""
   elements.orchestratorPromptInput.value = ""
   elements.referenceUrlsInput.value = ""
   elements.webSearchInput.checked = false
@@ -390,17 +371,6 @@ function clearForm() {
   elements.reviewOverrideSelect.value = ""
   setStatus("Run form cleared.")
 }
-
-elements.promptTemplateSelect.addEventListener("change", () => {
-  const selectedPrompt = state.prompts.find((prompt) => prompt.id === elements.promptTemplateSelect.value)
-
-  if (!selectedPrompt) {
-    return
-  }
-
-  elements.orchestratorPromptInput.value = selectedPrompt.content
-  setStatus(`Loaded template "${selectedPrompt.title}".`)
-})
 
 elements.clearRunFormButton.addEventListener("click", () => {
   clearForm()

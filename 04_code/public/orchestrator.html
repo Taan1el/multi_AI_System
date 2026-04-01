@@ -15,8 +15,8 @@
   <body>
     <div class="shell">
       <nav class="view-nav fade-in" aria-label="Workspace views">
-        <a class="view-link" href="/">Prompt Library</a>
-        <a class="view-link active" href="/orchestrator">Orchestrator</a>
+        <a class="view-link active" href="/">Orchestrator</a>
+        <a class="view-link" href="/prompt-library">Prompt Library</a>
       </nav>
 
       <header class="masthead fade-in">
@@ -25,7 +25,7 @@
           <h1>Multi AI Orchestrator</h1>
           <p class="lede">
             Launch one prompt into a local-first run, mix in cloud providers when credentials exist,
-            and inspect the full plan-to-review pipeline from one dashboard.
+            and inspect the manager, coder, and reviewer execution loop from one dashboard.
           </p>
         </div>
         <div class="masthead-meta">
@@ -46,18 +46,11 @@
 
           <form id="orchestratorForm" class="editor-form">
             <label class="field">
-              <span>Prompt template</span>
-              <select id="promptTemplateSelect" class="select-input">
-                <option value="">Start from scratch</option>
-              </select>
-            </label>
-
-            <label class="field">
               <span>Prompt</span>
               <textarea
                 id="orchestratorPromptInput"
                 rows="8"
-                placeholder="Describe the task you want the manager, architect, code, and review agents to handle."
+                placeholder="Describe the task you want the manager, architect, coder, and reviewer agents to execute."
                 required
               ></textarea>
             </label>
