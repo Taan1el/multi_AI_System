@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Handoff Artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_agent",
+    "target_agent",
+    "objective",
+    "inputs",
+    "outputs",
+    "blockers",
+    "assumptions",
+    "next_action"
+  ],
+  "properties": {
+    "source_agent": {
+      "type": "string",
+      "enum": ["manager", "architect", "coder", "designer", "reviewer", "researcher"]
+    },
+    "target_agent": {
+      "type": "string",
+      "enum": ["manager", "architect", "coder", "designer", "reviewer", "researcher"]
+    },
+    "objective": { "type": "string", "minLength": 1 },
+    "inputs": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "outputs": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "blockers": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "next_action": { "type": "string", "minLength": 1 }
+  }
+}

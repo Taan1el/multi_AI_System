@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node --watch 04_code/server.js",
     "start": "node 04_code/server.js",
-    "test": "echo \"No automated tests configured yet\"",
+    "test": "node --test tests/*.test.js",
     "multi-ai": "node scripts/run-multi-ai.js",
     "snippets:bridge": "node scripts/print-bridge-snippets.js",
     "setup:roo-local": "powershell -ExecutionPolicy Bypass -File scripts/bootstrap-home-pc.ps1",

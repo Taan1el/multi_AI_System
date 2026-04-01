@@ -1,0 +1,17 @@
+{
+  "status": "rejected",
+  "prompt": "invalid gibberish prompt xyz123",
+  "model": {
+    "provider": "ollama",
+    "name": "llama3.2:3b",
+    "base_url": "http://localhost:11434"
+  },
+  "plan": null,
+  "implementation": null,
+  "review": null,
+  "approved": false,
+  "error": {
+    "type": "invalid_prompt",
+    "message": "Prompt does not describe a clear task. Please ask for a concrete action, for example 'Build a Python class for a todo list'."
+  }
+}
