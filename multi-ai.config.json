@@ -93,7 +93,7 @@
     "hybrid": {
       "label": "Hybrid local + cloud",
       "roles": {
-        "manager": ["local-manager", "openrouter-fallback"],
+        "manager": ["anthropic-architect", "openai-code"],
         "architect": ["anthropic-architect", "gemini-review", "local-research"],
         "code": ["openai-code", "openrouter-fallback", "local-code"],
         "review": ["gemini-review", "anthropic-architect", "local-research"],

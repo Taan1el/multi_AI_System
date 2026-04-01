@@ -16,14 +16,15 @@ test("router skips earlier profiles that do not satisfy role capabilities", () =
   assert.equal(result.selectedProfiles.coder, "local-code")
 })
 
-test("router skips unavailable cloud profiles before selecting a compatible fallback", () => {
+test("hybrid manager falls back from anthropic to openai when anthropic is unavailable", () => {
   const result = resolveProfiles(config, {
     presetName: "hybrid",
     environment: {
-      OPENROUTER_API_KEY: "set",
+      OPENAI_API_KEY: "set",
     },
   })
 
-  assert.equal(result.selectedProfiles.coder, "openrouter-fallback")
+  assert.equal(result.selectedProfiles.manager, "openai-code")
+  assert.equal(result.selectedProfiles.coder, "openai-code")
   assert.equal(result.selectedProfiles.architect, "local-research")
 })
