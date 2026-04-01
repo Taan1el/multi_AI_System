@@ -4,6 +4,21 @@ const path = require("node:path")
 
 const actualRepoRoot = path.resolve(__dirname, "..")
 
+async function removeWithRetry(targetPath, attempts = 6) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      await fs.rm(targetPath, { recursive: true, force: true })
+      return
+    } catch (error) {
+      if (!["ENOTEMPTY", "EPERM", "EBUSY"].includes(error.code) || attempt === attempts - 1) {
+        throw error
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)))
+    }
+  }
+}
+
 async function createTempRepo() {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "multi-ai-system-"))
   await fs.mkdir(path.join(tempRoot, "01_planning"), { recursive: true })
@@ -21,7 +36,7 @@ async function createTempRepo() {
     repoRoot: tempRoot,
     appRoot: path.join(tempRoot, "04_code"),
     contractsRoot: actualRepoRoot,
-    cleanup: async () => fs.rm(tempRoot, { recursive: true, force: true }),
+    cleanup: async () => removeWithRetry(tempRoot),
   }
 }
 
@@ -191,5 +206,6 @@ module.exports = {
   actualRepoRoot,
   createMockProviderApi,
   createTempRepo,
+  removeWithRetry,
   successfulCommandRunner,
 }

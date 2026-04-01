@@ -304,6 +304,25 @@ function createOrchestrator(options = {}) {
     return `${JSON.stringify(value, null, 2)}\n`
   }
 
+  async function readJsonFileWithRetry(filePath, attempts = 6) {
+    let lastError = null
+
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        const raw = await fsp.readFile(filePath, "utf8")
+        return JSON.parse(raw)
+      } catch (error) {
+        lastError = error
+        if (error.name !== "SyntaxError" || attempt === attempts - 1) {
+          throw error
+        }
+        await new Promise((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
+      }
+    }
+
+    throw lastError
+  }
+
   function summarizeRun(record) {
     return {
       id: record.id,
@@ -346,7 +365,7 @@ function createOrchestrator(options = {}) {
     }
 
     const runDir = path.join(repoRoot, summary.runDirRelative)
-    return JSON.parse(await fsp.readFile(runFilePath(runDir), "utf8"))
+    return readJsonFileWithRetry(runFilePath(runDir))
   }
 
   async function listRuns() {
@@ -875,6 +894,7 @@ function createOrchestrator(options = {}) {
   }
 
   function buildCoderPrompt(agentContract, task, handoff, supportingArtifacts, workspaceManifest) {
+    const workspaceContext = buildScopedWorkspaceContext(workspaceManifest, task)
     return [
       agentContract.trim(),
       "",
@@ -890,8 +910,8 @@ function createOrchestrator(options = {}) {
       formatJson(task),
       "Handoff JSON:",
       formatJson(handoff),
-      "Workspace manifest:",
-      workspaceManifest,
+      "Workspace context:",
+      workspaceContext,
       "",
       "Supporting artifacts:",
       supportingArtifacts.join("\n\n"),
@@ -1085,9 +1105,47 @@ function createOrchestrator(options = {}) {
       String(architectureMarkdown || "")
         .split(/\r?\n/)
         .filter((line) => /^\s*[-*]\s+/.test(line))
-        .map((line) => line.replace(/^\s*[-*]\s+/, "").split(/\s+-\s+/)[0].trim())
+        .map((line) =>
+          line
+            .replace(/^\s*[-*]\s+/, "")
+            .split(/\s+-\s+/)[0]
+            .replace(/[`*]/g, "")
+            .split(/\s*:\s+/)[0]
+            .replace(/:+$/, "")
+            .trim(),
+        )
         .filter((line) => /\//.test(line)),
     ).slice(0, 5)
+  }
+
+  function buildScopedWorkspaceContext(workspaceManifest, task) {
+    const manifestLines = String(workspaceManifest || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+    const fileLines = manifestLines.filter((line) => line.startsWith("- "))
+    const scope = normalizeStringArray(task.workspace_scope.length > 0 ? task.workspace_scope : task.outputs)
+    const relevantLines =
+      scope.length === 0
+        ? fileLines.slice(0, 40)
+        : fileLines.filter((line) => {
+            const relativePath = line.replace(/^- /, "").replace(/\/$/, "")
+            return scope.some((entry) => {
+              const normalizedEntry = String(entry || "").replace(/\/$/, "")
+              return relativePath === normalizedEntry || relativePath.startsWith(`${normalizedEntry}/`)
+            })
+          })
+
+    return [
+      "# Workspace Context",
+      "",
+      "## Allowed Scope",
+      ...(scope.length === 0 ? ["- No explicit workspace scope was extracted."] : scope.map((entry) => `- ${entry}`)),
+      "",
+      "## Relevant Files",
+      ...(relevantLines.length === 0 ? ["- No existing files matched the scope yet."] : relevantLines.slice(0, 40)),
+      "",
+    ].join("\n")
   }
 
   function buildFollowUpTasks(runId, prompt, architectureMarkdown, context) {
@@ -1514,7 +1572,7 @@ function createOrchestrator(options = {}) {
     lines.push(`- Synced files: ${syncedFiles.length}`)
     lines.push(`- Executed specialist tasks: ${taskResults.length}`)
     lines.push("", "## Recommended Next Step")
-    lines.push(record.status === "completed" ? "Inspect the run-report and approved outputs, then continue with the next scoped task." : "Review the failed task artifacts before retrying the run.")
+    lines.push(record.status === "terminal_failure" ? "Review the failed task artifacts before retrying the run." : "Inspect the run-report and approved outputs, then continue with the next scoped task.")
     return `${lines.join("\n")}\n`
   }
 
