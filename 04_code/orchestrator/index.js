@@ -899,6 +899,8 @@ function createOrchestrator(options = {}) {
       agentContract.trim(),
       "",
       "Return JSON only.",
+      "Do not install new packages or run build commands unless the task explicitly requires them and the workspace already supports them.",
+      "If a dependency or script is unavailable, rewrite the solution to avoid it and keep the implementation self-contained.",
       "Use exactly these top-level fields:",
       '- "summary": string',
       '- "files": array of objects with "path" and "content"',
@@ -1153,6 +1155,14 @@ function createOrchestrator(options = {}) {
     let taskNumber = 2
     const architectureHints = extractArchitectureFileHints(architectureMarkdown)
     const dependencyIds = ["task-001"]
+    const defaultCodeOutput = /\breact\b/i.test(prompt) ? "04_code/generated/notes-app.jsx" : "04_code/generated/output.txt"
+    const codeOutputs =
+      architectureHints.length > 0 ? architectureHints.filter((hint) => hint.startsWith("04_code")) : [defaultCodeOutput]
+    const codeScope = normalizeStringArray(
+      architectureHints.length > 0
+        ? architectureHints.filter((hint) => hint.startsWith("04_code"))
+        : [path.posix.dirname(defaultCodeOutput)],
+    )
 
     if (requiresResearch(prompt, context.referenceUrls, context.enableWebSearch)) {
       tasks.push(
@@ -1206,11 +1216,15 @@ function createOrchestrator(options = {}) {
         title: "Implement the approved task in the shared workspace",
         objective: "Apply the requested code changes in the run workspace and capture implementation evidence.",
         inputs: ["01_planning/plan.md", "02_architecture/architecture.md", ...tasks.map((task) => task.outputs[0])],
-        outputs: architectureHints.length > 0 ? architectureHints.filter((hint) => hint.startsWith("04_code")) : ["04_code/"],
-        constraints: ["Stay within the shared workspace.", "Use only safe shell commands."],
+        outputs: codeOutputs,
+        constraints: [
+          "Stay within the shared workspace.",
+          "Use only safe shell commands.",
+          "Prefer implementation through file writes over dependency installation.",
+        ],
         acceptance_criteria: ["Requested code changes are applied.", "Validation evidence is captured for the reviewer."],
         dependencies: [...dependencyIds],
-        workspace_scope: architectureHints.filter((hint) => hint.startsWith("04_code")),
+        workspace_scope: codeScope,
         blockers: [],
         assumptions: [],
       }),
@@ -1325,6 +1339,33 @@ function createOrchestrator(options = {}) {
     if (/(validate|verify|test|check)/i.test(lowerDirective)) {
       nextTask.acceptance_criteria = normalizeStringArray([...nextTask.acceptance_criteria, directive])
       changedFields.push("acceptance_criteria")
+    }
+
+    const failedCommandMatch = directive.match(/^Command failed:\s*(.+)$/i)
+    if (failedCommandMatch) {
+      const failedCommand = failedCommandMatch[1].trim()
+      nextTask.constraints = normalizeStringArray([
+        ...nextTask.constraints,
+        `Do not run "${failedCommand}" again.`,
+        "Adapt the solution to the existing workspace instead of adding unavailable dependencies or scripts.",
+      ])
+      changedFields.push("constraints")
+
+      if (/(npm install|pnpm add|yarn add|bun add)/i.test(failedCommand)) {
+        nextTask.acceptance_criteria = normalizeStringArray([
+          ...nextTask.acceptance_criteria,
+          "Implementation avoids adding new dependencies unless they already exist in package.json.",
+        ])
+        changedFields.push("acceptance_criteria")
+      }
+
+      if (/(npm run build|pnpm build|yarn build|bun run build)/i.test(failedCommand)) {
+        nextTask.acceptance_criteria = normalizeStringArray([
+          ...nextTask.acceptance_criteria,
+          "Implementation is delivered as source files without requiring an unavailable build script.",
+        ])
+        changedFields.push("acceptance_criteria")
+      }
     }
 
     if (/(exact|specific|format|schema|content|string|json)/i.test(lowerDirective)) {
