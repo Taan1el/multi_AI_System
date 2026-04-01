@@ -1,0 +1,122 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Task Artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "run_id",
+    "assigned_agent",
+    "title",
+    "objective",
+    "inputs",
+    "outputs",
+    "constraints",
+    "acceptance_criteria",
+    "dependencies",
+    "workspace_scope",
+    "status",
+    "iteration",
+    "blockers",
+    "assumptions",
+    "review_directives_applied"
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "assigned_agent": {
+      "type": "string",
+      "enum": ["manager", "architect", "coder", "designer", "reviewer", "researcher"]
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "objective": { "type": "string", "minLength": 1 },
+    "inputs": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "outputs": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "workspace_scope": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["queued", "assigned", "in_progress", "in_review", "needs_revision", "completed", "blocked", "failed"]
+    },
+    "iteration": { "type": "number" },
+    "blockers": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "review_directives_applied": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_review_file",
+          "directive",
+          "changed_fields",
+          "previous_snapshot",
+          "next_snapshot"
+        ],
+        "properties": {
+          "source_review_file": { "type": "string", "minLength": 1 },
+          "directive": { "type": "string", "minLength": 1 },
+          "changed_fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["objective", "inputs", "outputs", "constraints", "acceptance_criteria", "workspace_scope"]
+            }
+          },
+          "previous_snapshot": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["objective", "inputs", "outputs", "constraints", "acceptance_criteria", "workspace_scope"],
+            "properties": {
+              "objective": { "type": "string" },
+              "inputs": { "type": "array", "items": { "type": "string" } },
+              "outputs": { "type": "array", "items": { "type": "string" } },
+              "constraints": { "type": "array", "items": { "type": "string" } },
+              "acceptance_criteria": { "type": "array", "items": { "type": "string" } },
+              "workspace_scope": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "next_snapshot": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["objective", "inputs", "outputs", "constraints", "acceptance_criteria", "workspace_scope"],
+            "properties": {
+              "objective": { "type": "string" },
+              "inputs": { "type": "array", "items": { "type": "string" } },
+              "outputs": { "type": "array", "items": { "type": "string" } },
+              "constraints": { "type": "array", "items": { "type": "string" } },
+              "acceptance_criteria": { "type": "array", "items": { "type": "string" } },
+              "workspace_scope": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    }
+  }
+}

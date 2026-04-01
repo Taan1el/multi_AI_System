@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Run Report Artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "prompt",
+    "preset",
+    "status",
+    "created_at",
+    "updated_at",
+    "selected_profiles",
+    "artifact_files",
+    "task_summary",
+    "iteration_summary",
+    "workspace_root",
+    "terminal_reason"
+  ],
+  "properties": {
+    "run_id": { "type": "string", "minLength": 1 },
+    "prompt": { "type": "string", "minLength": 1 },
+    "preset": { "type": "string", "minLength": 1 },
+    "status": {
+      "type": "string",
+      "enum": ["queued", "running", "completed", "max_iterations", "terminal_failure", "failed"]
+    },
+    "created_at": { "type": "string", "minLength": 1 },
+    "updated_at": { "type": "string", "minLength": 1 },
+    "selected_profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manager", "architect", "coder", "designer", "reviewer", "researcher"],
+      "properties": {
+        "manager": { "type": "string", "minLength": 1 },
+        "architect": { "type": "string", "minLength": 1 },
+        "coder": { "type": "string", "minLength": 1 },
+        "designer": { "type": "string", "minLength": 1 },
+        "reviewer": { "type": "string", "minLength": 1 },
+        "researcher": { "type": "string", "minLength": 1 }
+      }
+    },
+    "artifact_files": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plan_md",
+        "architecture_md",
+        "task_index_json",
+        "implementation_md",
+        "review_md",
+        "summary_md",
+        "handoff_files",
+        "review_files",
+        "task_files",
+        "run_report_json"
+      ],
+      "properties": {
+        "plan_md": { "type": "string", "minLength": 1 },
+        "architecture_md": { "type": "string", "minLength": 1 },
+        "task_index_json": { "type": "string", "minLength": 1 },
+        "implementation_md": { "type": "string", "minLength": 1 },
+        "review_md": { "type": "string", "minLength": 1 },
+        "summary_md": { "type": "string", "minLength": 1 },
+        "run_report_json": { "type": "string", "minLength": 1 },
+        "handoff_files": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "review_files": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "task_files": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "task_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "completed", "needs_revision", "blocked", "failed"],
+      "properties": {
+        "total": { "type": "number" },
+        "completed": { "type": "number" },
+        "needs_revision": { "type": "number" },
+        "blocked": { "type": "number" },
+        "failed": { "type": "number" }
+      }
+    },
+    "iteration_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current", "max"],
+      "properties": {
+        "current": { "type": "number" },
+        "max": { "type": "number" }
+      }
+    },
+    "workspace_root": { "type": "string", "minLength": 1 },
+    "terminal_reason": {
+      "type": "string",
+      "enum": ["success", "max_iterations", "terminal_failure", "failed"]
+    }
+  }
+}

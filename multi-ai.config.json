@@ -2,7 +2,8 @@
   "runtime": {
     "outputDir": "output/multi-ai-runs",
     "workspaceSync": true,
-    "historyLimit": 60
+    "historyLimit": 60,
+    "maxTaskIterations": 3
   },
   "features": {
     "webSearch": {
@@ -27,47 +28,54 @@
       "type": "ollama",
       "label": "Local Manager",
       "model": "deepseek-r1:1.5b-qwen-distill-q8_0",
-      "baseUrl": "http://127.0.0.1:11434"
+      "baseUrl": "http://127.0.0.1:11434",
+      "capabilities": ["reasoning", "structured_output", "long_context"]
     },
     "local-code": {
       "type": "ollama",
       "label": "Local Code",
       "model": "qwen2.5-coder:7b",
-      "baseUrl": "http://127.0.0.1:11434"
+      "baseUrl": "http://127.0.0.1:11434",
+      "capabilities": ["reasoning", "structured_output", "code_generation", "tool_execution", "long_context"]
     },
     "local-research": {
       "type": "ollama",
       "label": "Local Research",
       "model": "gemma3:4b",
-      "baseUrl": "http://127.0.0.1:11434"
+      "baseUrl": "http://127.0.0.1:11434",
+      "capabilities": ["reasoning", "structured_output", "artifact_review", "design_spec", "research_retrieval", "long_context"]
     },
     "anthropic-architect": {
       "type": "anthropic",
       "label": "Claude Architect",
       "model": "claude-3-7-sonnet-latest",
       "apiKeyEnv": "ANTHROPIC_API_KEY",
-      "apiUrl": "https://api.anthropic.com/v1/messages"
+      "apiUrl": "https://api.anthropic.com/v1/messages",
+      "capabilities": ["reasoning", "structured_output", "artifact_review", "design_spec", "research_retrieval", "long_context"]
     },
     "openai-code": {
       "type": "openai",
       "label": "OpenAI Code",
       "model": "gpt-5",
       "apiKeyEnv": "OPENAI_API_KEY",
-      "baseUrl": "https://api.openai.com/v1"
+      "baseUrl": "https://api.openai.com/v1",
+      "capabilities": ["reasoning", "structured_output", "artifact_review", "code_generation", "tool_execution", "design_spec", "long_context"]
     },
     "gemini-review": {
       "type": "gemini",
       "label": "Gemini Review",
       "model": "gemini-2.5-pro",
       "apiKeyEnv": "GEMINI_API_KEY",
-      "baseUrl": "https://generativelanguage.googleapis.com/v1beta"
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+      "capabilities": ["reasoning", "structured_output", "artifact_review", "design_spec", "research_retrieval", "long_context"]
     },
     "openrouter-fallback": {
       "type": "openai-compatible",
       "label": "OpenRouter Fallback",
       "model": "openai/gpt-5",
       "apiKeyEnv": "OPENROUTER_API_KEY",
-      "baseUrl": "https://openrouter.ai/api/v1"
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "capabilities": ["reasoning", "structured_output", "artifact_review", "code_generation", "tool_execution", "design_spec", "research_retrieval", "long_context"]
     }
   },
   "presets": {
@@ -77,7 +85,9 @@
         "manager": ["local-manager"],
         "architect": ["local-research"],
         "code": ["local-code"],
-        "review": ["local-research"]
+        "review": ["local-research"],
+        "designer": ["local-research"],
+        "researcher": ["local-research"]
       }
     },
     "hybrid": {
@@ -86,7 +96,9 @@
         "manager": ["local-manager", "openrouter-fallback"],
         "architect": ["anthropic-architect", "gemini-review", "local-research"],
         "code": ["openai-code", "openrouter-fallback", "local-code"],
-        "review": ["gemini-review", "anthropic-architect", "local-research"]
+        "review": ["gemini-review", "anthropic-architect", "local-research"],
+        "designer": ["gemini-review", "anthropic-architect", "local-research"],
+        "researcher": ["gemini-review", "anthropic-architect", "local-research"]
       }
     }
   }

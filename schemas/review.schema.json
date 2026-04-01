@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Review Artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "findings",
+    "blocking_issues",
+    "non_blocking_improvements",
+    "revision_request",
+    "approved"
+  ],
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "blocking_issues": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "non_blocking_improvements": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "revision_request": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "approved": { "type": "boolean" }
+  }
+}
