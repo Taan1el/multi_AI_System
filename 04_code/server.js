@@ -50,7 +50,7 @@ const seedPrompts = [
 let writeQueue = Promise.resolve();
 
 app.use(express.json({ limit: "1mb" }));
-app.use(express.static(publicDir));
+app.use(express.static(publicDir, { index: false }));
 
 function parseTags(input) {
   if (Array.isArray(input)) {
@@ -277,8 +277,16 @@ app.get("/api/health", (_request, response) => {
   response.json({ status: "ok" });
 });
 
+app.get("/", (_request, response) => {
+  response.sendFile(path.join(publicDir, "orchestrator.html"));
+});
+
 app.get("/orchestrator", (_request, response) => {
   response.sendFile(path.join(publicDir, "orchestrator.html"));
+});
+
+app.get("/prompt-library", (_request, response) => {
+  response.sendFile(path.join(publicDir, "index.html"));
 });
 
 app.get("/api/orchestrator/config", async (_request, response, next) => {
@@ -403,5 +411,5 @@ app.use((error, _request, response, _next) => {
 
 app.listen(port, async () => {
   await ensureDataFile();
-  console.log(`Prompt Library is running at http://localhost:${port}`);
+  console.log(`Multi AI Orchestrator is running at http://localhost:${port}`);
 });

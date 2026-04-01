@@ -119,6 +119,10 @@ const ARTIFACT_DEFS = [
   { key: "plan", relativePath: "01_planning/plan.md", type: "text" },
   { key: "architecture", relativePath: "02_architecture/architecture.md", type: "text" },
   { key: "tasks", relativePath: "03_tasks/tasks.json", type: "json" },
+  { key: "messages", relativePath: "messages.json", type: "json" },
+  { key: "taskExecution", relativePath: "task-execution.json", type: "json" },
+  { key: "commandResults", relativePath: "command-results.json", type: "json" },
+  { key: "workspaceManifest", relativePath: "workspace-manifest.md", type: "text" },
   { key: "implementation", relativePath: "04_code/implementation.md", type: "text" },
   { key: "review", relativePath: "05_reviews/review.md", type: "text" },
   { key: "summary", relativePath: "summary.md", type: "text" },
@@ -127,11 +131,29 @@ const ARTIFACT_DEFS = [
 const STAGE_DEFS = [
   { key: "planning", label: "Planning", role: "manager" },
   { key: "architecture", label: "Architecture", role: "architect" },
-  { key: "implementation", label: "Implementation", role: "code" },
   { key: "tasks", label: "Task Synthesis", role: "manager" },
+  { key: "implementation", label: "Implementation", role: "code" },
   { key: "review", label: "Review", role: "review" },
   { key: "summary", label: "Summary", role: "manager" },
 ]
+
+const WORKSPACE_COPY_EXCLUDES = new Set([".git", "node_modules", "output", ".playwright-cli"])
+const SAFE_COMMAND_PREFIXES = [
+  "npm",
+  "npx",
+  "node",
+  "git status",
+  "git diff",
+  "python",
+  "py",
+  "pytest",
+  "pnpm",
+  "yarn",
+  "bun",
+]
+const BLOCKED_COMMAND_PATTERNS = ["&&", "||", ";", "|", ">", "<", "rm ", "del ", "rmdir ", "Remove-Item"]
+const MAX_TASK_ATTEMPTS = 2
+const COMMAND_TIMEOUT_MS = 120000
 
 function createOrchestrator(options = {}) {
   const repoRoot = options.repoRoot || path.resolve(__dirname, "..", "..")
@@ -341,19 +363,19 @@ function createOrchestrator(options = {}) {
       title: truncate(userPrompt.replace(/\s+/g, " ").trim(), 90),
       objective: userPrompt.trim(),
       deliverable:
-        "Generated planning, architecture, tasks, implementation handoff, and review artifacts for the requested work.",
+        "Generated planning, architecture, executable tasks, implementation evidence, and review artifacts for the requested work.",
       constraints: [
         "Prefer a practical local-first v1.",
         "Keep the output actionable for follow-up work in Roo or the dashboard.",
       ],
       successCriteria: [
-        "The plan, architecture, tasks, implementation handoff, and review are consistent with each other.",
-        "The generated tasks are concrete enough for the selected code model to execute next.",
+        "The plan, architecture, tasks, implementation evidence, and review are consistent with each other.",
+        "The generated tasks are concrete enough for the selected code model to execute in the run workspace.",
       ],
       workstreams: [
         "Planning and orchestration",
         "Architecture and design",
-        "Implementation handoff",
+        "Implementation and validation",
         "Review and next-loop guidance",
       ],
       risks: ["Model output can need human verification before implementation."],
@@ -474,11 +496,6 @@ function createOrchestrator(options = {}) {
     const fileHints = extractListItems(extractSection(implementationMarkdown, "Suggested File Changes"))
       .concat(extractListItems(extractSection(architectureMarkdown, "Files and Folders")))
       .slice(0, 8)
-    const buildOrder = extractListItems(extractSection(implementationMarkdown, "Execution Order")).slice(0, 4)
-    const fallbackBuildOrder =
-      buildOrder.length > 0
-        ? buildOrder
-        : extractListItems(extractSection(architectureMarkdown, "Recommended Build Order")).slice(0, 4)
     const tasks = []
     let taskNumber = 1
 
@@ -506,46 +523,28 @@ function createOrchestrator(options = {}) {
     )
     taskNumber += 1
 
-    if (fallbackBuildOrder.length > 0) {
-      fallbackBuildOrder.forEach((step, index) => {
-        const id = `task-${String(taskNumber - 1).padStart(3, "0")}`
-        const dependsOn = index === 0 ? ["task-002"] : [id]
-        tasks.push(
-          makeTask(
-            taskNumber,
-            truncate(step.replace(/[.:]+$/, ""), 80),
-            taskOwnerFromText(step),
-            selectDeliverablesForStep(step, fileHints, ["04_code/"]),
-            `Execute this build-order step from the architecture: ${step}`,
-            dependsOn,
-          ),
-        )
-        taskNumber += 1
-      })
-    } else {
-      tasks.push(
-        makeTask(
-          taskNumber,
-          "Implement the core feature set in 04_code",
-          "Local Code",
-          ["04_code/"],
-          "Build the primary user flow and the core domain behavior first.",
-          ["task-002"],
-        ),
-      )
-      taskNumber += 1
-      tasks.push(
-        makeTask(
-          taskNumber,
-          "Add validation, safety checks, and supporting behavior",
-          "Local Code",
-          ["04_code/"],
-          "Cover the non-happy-path behavior, configuration, and supporting logic.",
-          [`task-${String(taskNumber - 1).padStart(3, "0")}`],
-        ),
-      )
-      taskNumber += 1
-    }
+    tasks.push(
+      makeTask(
+        taskNumber,
+        "Implement the primary code changes in 04_code",
+        "Local Code",
+        fileHints.length > 0 ? selectDeliverablesForStep("primary implementation", fileHints, ["04_code/"]) : ["04_code/"],
+        "Build the smallest working version of the requested feature or task in the shared workspace.",
+        ["task-002"],
+      ),
+    )
+    taskNumber += 1
+    tasks.push(
+      makeTask(
+        taskNumber,
+        "Validate the implementation and tighten supporting behavior",
+        "Local Code",
+        fileHints.length > 0 ? fileHints.slice(0, 3) : ["04_code/"],
+        "Run bounded validation steps, fix obvious issues, and leave implementation evidence for review.",
+        [`task-${String(taskNumber - 1).padStart(3, "0")}`],
+      ),
+    )
+    taskNumber += 1
 
     const previousTaskId = tasks[tasks.length - 1].id
     tasks.push(
@@ -707,40 +706,127 @@ function createOrchestrator(options = {}) {
     ].join("\n")
   }
 
-  function buildImplementationPrompt(userPrompt, managerBrief, planMarkdown, architectureMarkdown, augmentationText) {
+  function buildTaskAssignmentPrompt({
+    userPrompt,
+    managerBrief,
+    task,
+    planMarkdown,
+    architectureMarkdown,
+    reviewerFeedback,
+  }) {
     return [
-      "You are Local Code producing an implementation handoff for 04_code.",
+      "You are Local Manager assigning one concrete implementation task to Local Code.",
       "Write markdown only.",
-      "Do not write the actual application code yet.",
-      "Create a practical implementation brief that another coding pass can execute quickly.",
       "Use these sections in this exact order:",
-      "# Implementation",
-      "## Build Strategy",
-      "## Suggested File Changes",
-      "## Execution Order",
-      "## Shell Commands",
-      "## Acceptance Checklist",
-      "## Likely Blockers",
-      "In Suggested File Changes, use repo-relative file or folder paths followed by a short purpose.",
-      "In Execution Order, use action-oriented steps rather than bare filenames.",
+      "# Task Assignment",
+      "## Objective",
+      "## Required Changes",
+      "## Acceptance Checks",
+      "## Constraints",
+      "Be specific to the current task and the existing workspace.",
       "",
-      augmentationText,
       "User request:",
       userPrompt,
       "",
       "Manager brief JSON:",
       formatJson(managerBrief),
+      "Current task JSON:",
+      formatJson(task),
       "Plan markdown:",
       planMarkdown,
       "",
       "Architecture markdown:",
       architectureMarkdown,
+      reviewerFeedback ? `\nReviewer feedback to address:\n${reviewerFeedback}\n` : "",
+    ].join("\n")
+  }
+
+  function buildCoderPrompt({
+    userPrompt,
+    task,
+    assignmentMarkdown,
+    workspaceManifest,
+    reviewerFeedback,
+    augmentationText,
+  }) {
+    return [
+      "You are Local Code working inside a shared run workspace.",
+      "You must propose real file contents and safe shell commands for this task.",
+      "Write markdown only.",
+      "Use these sections in this exact order:",
+      "# Coder Response",
+      "## Summary",
+      "## Files",
+      'For each file, use a heading exactly like "### FILE: relative/path.ext" followed by one fenced code block with the full new file content.',
+      "If no file changes are needed, write exactly `### FILE: NONE`.",
+      "## Shell Commands",
+      "Use a single fenced sh block with one command per line. Only include commands that should be run now.",
+      "## Notes",
+      "Keep the response executable and minimal. Do not describe hypothetical work. Do not return diffs.",
+      "",
+      augmentationText,
+      "User request:",
+      userPrompt,
+      "",
+      "Current task JSON:",
+      formatJson(task),
+      "Manager assignment:",
+      assignmentMarkdown,
+      reviewerFeedback ? `\nReviewer feedback to address:\n${reviewerFeedback}\n` : "",
+      "Workspace manifest:",
+      workspaceManifest,
+    ].join("\n")
+  }
+
+  function buildReviewerDecisionPrompt({
+    userPrompt,
+    task,
+    assignmentMarkdown,
+    coderResponse,
+    commandBatch,
+  }) {
+    return [
+      "You are Local Research reviewing one implementation attempt.",
+      "Write markdown only.",
+      "Use these sections in this exact order:",
+      "# Review Decision",
+      "## Verdict",
+      "Write only one word: approve or revise.",
+      "## Findings",
+      "Use bullet points.",
+      "## Required Changes",
+      "Use bullet points. If the task is good enough, write `- None`.",
+      "",
+      "User request:",
+      userPrompt,
+      "",
+      "Current task JSON:",
+      formatJson(task),
+      "Manager assignment:",
+      assignmentMarkdown,
+      "Coder summary:",
+      coderResponse.summary || "No summary provided.",
+      "",
+      "Files written:",
+      formatJson(coderResponse.files.map((entry) => entry.path)),
+      "Shell commands attempted:",
+      formatJson(
+        commandBatch.map((entry) => ({
+          command: entry.command,
+          status: entry.status,
+          exitCode: entry.exitCode,
+          stdout: entry.stdout,
+          stderr: entry.stderr,
+        })),
+      ),
+      "Coder notes:",
+      coderResponse.notes || "None.",
     ].join("\n")
   }
 
   function buildReviewPrompt(userPrompt, managerBrief, planMarkdown, architectureMarkdown, tasksJson, implementationMarkdown, augmentationText) {
     return [
-      "You are Local Research reviewing a multi-model planning pass.",
+      "You are Local Research reviewing an executed multi-agent pass.",
       "Write markdown only.",
       "Use these sections in this exact order:",
       "# Review",
@@ -791,11 +877,356 @@ function createOrchestrator(options = {}) {
     }
   }
 
-  async function writeWorkspaceArtifacts({ planMarkdown, architectureMarkdown, tasksJson, reviewMarkdown, summaryMarkdown, runRelativePath, managerBrief }) {
+  function normalizeRelativeWorkspacePath(value) {
+    const normalized = path.posix.normalize(String(value || "").trim().replace(/\\/g, "/"))
+    if (!normalized || normalized === "." || normalized.startsWith("../") || normalized === "..") {
+      return null
+    }
+
+    if (path.posix.isAbsolute(normalized) || /^[a-zA-Z]:/.test(normalized)) {
+      return null
+    }
+
+    return normalized
+  }
+
+  async function copyPathRecursive(sourcePath, destinationPath) {
+    const stats = await fsp.lstat(sourcePath)
+    if (stats.isSymbolicLink()) {
+      return
+    }
+
+    if (stats.isDirectory()) {
+      if (WORKSPACE_COPY_EXCLUDES.has(path.basename(sourcePath))) {
+        return
+      }
+
+      await ensureDir(destinationPath)
+      const entries = await fsp.readdir(sourcePath)
+      for (const entry of entries) {
+        await copyPathRecursive(path.join(sourcePath, entry), path.join(destinationPath, entry))
+      }
+      return
+    }
+
+    await ensureDir(path.dirname(destinationPath))
+    await fsp.copyFile(sourcePath, destinationPath)
+  }
+
+  async function ensureExecutionWorkspace(runDir) {
+    const workspaceDir = path.join(runDir, "workspace")
+    if (!(await pathExists(workspaceDir))) {
+      await copyPathRecursive(repoRoot, workspaceDir)
+    }
+    return workspaceDir
+  }
+
+  async function buildWorkspaceManifestMarkdown(workspaceDir) {
+    const lines = ["# Workspace Manifest", "", "## Files"]
+    const queue = [{ dir: workspaceDir, depth: 0, prefix: "" }]
+    const maxDepth = 3
+    const maxEntries = 180
+    let entryCount = 0
+
+    while (queue.length > 0 && entryCount < maxEntries) {
+      const current = queue.shift()
+      const entries = await fsp.readdir(current.dir, { withFileTypes: true })
+      entries.sort((left, right) => left.name.localeCompare(right.name))
+
+      for (const entry of entries) {
+        if (WORKSPACE_COPY_EXCLUDES.has(entry.name)) {
+          continue
+        }
+
+        const relativePath = current.prefix ? `${current.prefix}/${entry.name}` : entry.name
+        lines.push(`- ${relativePath}${entry.isDirectory() ? "/" : ""}`)
+        entryCount += 1
+
+        if (entryCount >= maxEntries) {
+          break
+        }
+
+        if (entry.isDirectory() && current.depth < maxDepth) {
+          queue.push({
+            dir: path.join(current.dir, entry.name),
+            depth: current.depth + 1,
+            prefix: relativePath,
+          })
+        }
+      }
+    }
+
+    if (entryCount >= maxEntries) {
+      lines.push("", `Manifest truncated after ${maxEntries} entries.`)
+    }
+
+    return `${lines.join("\n")}\n`
+  }
+
+  function appendAgentMessage(messages, { role, profile, taskId, kind, content }) {
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      timestamp: new Date().toISOString(),
+      role,
+      profile,
+      taskId: taskId || null,
+      kind,
+      content: String(content || "").trim(),
+    }
+    messages.push(entry)
+    return entry
+  }
+
+  function extractCodeFenceContents(value) {
+    const match = String(value || "").match(/```[a-zA-Z0-9_-]*\s*([\s\S]*?)```/)
+    return match ? match[1].trim() : String(value || "").trim()
+  }
+
+  function parseShellCommands(markdownSection) {
+    const body = extractCodeFenceContents(markdownSection)
+    return body
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("#"))
+  }
+
+  function parseCoderResponse(markdown) {
+    const summary = extractSection(markdown, "Summary") || stripCodeFences(markdown)
+    const filesSection = extractSection(markdown, "Files")
+    const notes = extractSection(markdown, "Notes")
+    const shellCommands = parseShellCommands(extractSection(markdown, "Shell Commands"))
+    const files = []
+    const fileRegex = /^### FILE:\s+(.+?)\s*$([\s\S]*?)(?=^### FILE:\s+|$)/gim
+    let match
+
+    while ((match = fileRegex.exec(filesSection))) {
+      const relativePath = normalizeRelativeWorkspacePath(match[1])
+      if (!relativePath || relativePath.toUpperCase() === "NONE") {
+        continue
+      }
+
+      files.push({
+        path: relativePath,
+        content: `${extractCodeFenceContents(match[2])}\n`,
+      })
+    }
+
+    return {
+      summary: summary.trim(),
+      files,
+      commands: shellCommands,
+      notes: notes.trim(),
+      raw: markdown,
+    }
+  }
+
+  function parseReviewerDecision(markdown) {
+    const verdictSection = extractSection(markdown, "Verdict").toLowerCase()
+    const findings = extractListItems(extractSection(markdown, "Findings"))
+    const requiredChanges = extractListItems(extractSection(markdown, "Required Changes"))
+    const verdict = verdictSection.includes("approve") ? "approve" : "revise"
+
+    return {
+      verdict,
+      findings,
+      requiredChanges,
+      raw: markdown,
+    }
+  }
+
+  function isSafeCommand(command) {
+    const normalized = String(command || "").trim()
+    const lowered = normalized.toLowerCase()
+    if (!normalized) {
+      return false
+    }
+
+    if (BLOCKED_COMMAND_PATTERNS.some((pattern) => lowered.includes(pattern.toLowerCase()))) {
+      return false
+    }
+
+    return SAFE_COMMAND_PREFIXES.some((prefix) => lowered === prefix || lowered.startsWith(`${prefix} `))
+  }
+
+  async function runWorkspaceCommand(workspaceDir, command) {
+    const trimmed = String(command || "").trim()
+    if (!isSafeCommand(trimmed)) {
+      return {
+        command: trimmed,
+        status: "skipped",
+        exitCode: null,
+        stdout: "",
+        stderr: "Command blocked by safety policy.",
+      }
+    }
+
+    return new Promise((resolve) => {
+      const startedAt = Date.now()
+      const child = spawn("powershell", ["-NoProfile", "-Command", trimmed], {
+        cwd: workspaceDir,
+        windowsHide: true,
+      })
+      let stdout = ""
+      let stderr = ""
+      let completed = false
+      const timer = setTimeout(() => {
+        if (!completed) {
+          child.kill()
+        }
+      }, COMMAND_TIMEOUT_MS)
+
+      child.stdout.on("data", (chunk) => {
+        stdout += String(chunk)
+      })
+      child.stderr.on("data", (chunk) => {
+        stderr += String(chunk)
+      })
+      child.on("error", (error) => {
+        completed = true
+        clearTimeout(timer)
+        resolve({
+          command: trimmed,
+          status: "failed",
+          exitCode: null,
+          stdout: stdout.trim(),
+          stderr: `${stderr}\n${error.message}`.trim(),
+          durationMs: Date.now() - startedAt,
+        })
+      })
+      child.on("close", (exitCode) => {
+        completed = true
+        clearTimeout(timer)
+        resolve({
+          command: trimmed,
+          status: exitCode === 0 ? "completed" : "failed",
+          exitCode,
+          stdout: stdout.trim(),
+          stderr: stderr.trim(),
+          durationMs: Date.now() - startedAt,
+        })
+      })
+    })
+  }
+
+  async function applyWorkspaceFileWrites(workspaceDir, files) {
+    const writtenFiles = []
+
+    for (const entry of files) {
+      const relativePath = normalizeRelativeWorkspacePath(entry.path)
+      if (!relativePath) {
+        continue
+      }
+
+      const targetPath = path.join(workspaceDir, relativePath)
+      await writeFile(targetPath, entry.content)
+      writtenFiles.push(relativePath)
+    }
+
+    return writtenFiles
+  }
+
+  async function syncWorkspaceFilesToRepo(workspaceDir, relativePaths) {
+    const synced = []
+
+    for (const relativePath of relativePaths) {
+      const normalized = normalizeRelativeWorkspacePath(relativePath)
+      if (!normalized) {
+        continue
+      }
+
+      const sourcePath = path.join(workspaceDir, normalized)
+      if (!(await pathExists(sourcePath))) {
+        continue
+      }
+
+      const destinationPath = path.join(repoRoot, normalized)
+      await ensureDir(path.dirname(destinationPath))
+      await fsp.copyFile(sourcePath, destinationPath)
+      synced.push(normalized)
+    }
+
+    return synced
+  }
+
+  function selectExecutableTasks(tasksJson) {
+    return (tasksJson.tasks || []).filter((task) => {
+      const owner = String(task.owner || "").toLowerCase()
+      return owner.includes("code")
+    })
+  }
+
+  async function persistExecutionArtifacts(runDir, executionState) {
+    await writeFile(path.join(runDir, "messages.json"), formatJson(executionState.messages))
+    await writeFile(path.join(runDir, "task-execution.json"), formatJson(executionState.taskExecution))
+    await writeFile(path.join(runDir, "command-results.json"), formatJson(executionState.commandResults))
+    await writeFile(path.join(runDir, "workspace-manifest.md"), executionState.workspaceManifest)
+  }
+
+  function buildImplementationReportMarkdown({ taskExecution, commandResults, syncedFiles, workspaceDir }) {
+    const lines = [
+      "# Implementation",
+      "",
+      "## Workspace",
+      `- Run workspace: ${workspaceDir.replace(/\\/g, "/")}`,
+      `- Synced files: ${syncedFiles.length}`,
+      "",
+      "## Task Outcomes",
+    ]
+
+    if (taskExecution.length === 0) {
+      lines.push("- No executable coding tasks were selected for this run.")
+    } else {
+      for (const task of taskExecution) {
+        lines.push(`- ${task.id} | ${task.title} | ${task.status} | attempts: ${task.attempts.length}`)
+      }
+    }
+
+    lines.push("", "## Files Changed")
+    if (syncedFiles.length === 0) {
+      lines.push("- None")
+    } else {
+      for (const filePath of syncedFiles) {
+        lines.push(`- ${filePath}`)
+      }
+    }
+
+    lines.push("", "## Command Results")
+    if (commandResults.length === 0) {
+      lines.push("- No shell commands were executed.")
+    } else {
+      for (const result of commandResults) {
+        lines.push(`- ${result.command} | ${result.status} | exit: ${result.exitCode ?? "n/a"}`)
+      }
+    }
+
+    lines.push("", "## Next Step")
+    lines.push(
+      taskExecution.some((task) => task.status !== "completed")
+        ? "Review the task execution artifact and run another iteration for blocked or revised tasks."
+        : "Inspect the synced files and run project-specific validation before the next feature loop.",
+    )
+
+    return `${lines.join("\n")}\n`
+  }
+
+  async function writeWorkspaceArtifacts({
+    planMarkdown,
+    architectureMarkdown,
+    tasksJson,
+    reviewMarkdown,
+    summaryMarkdown,
+    runRelativePath,
+    managerBrief,
+    workspaceDir,
+    changedFiles,
+  }) {
     await writeFile(path.join(repoRoot, "01_planning", "plan.md"), `${planMarkdown.trim()}\n`)
     await writeFile(path.join(repoRoot, "02_architecture", "architecture.md"), `${architectureMarkdown.trim()}\n`)
     await writeFile(path.join(repoRoot, "03_tasks", "tasks.json"), formatJson(tasksJson))
     await writeFile(path.join(repoRoot, "05_reviews", "review.md"), `${reviewMarkdown.trim()}\n`)
+    if (workspaceDir && Array.isArray(changedFiles) && changedFiles.length > 0) {
+      await syncWorkspaceFilesToRepo(workspaceDir, changedFiles)
+    }
     await writeFile(
       path.join(repoRoot, "memory-bank", "activeContext.md"),
       buildActiveContext(summaryMarkdown, runRelativePath, managerBrief),
@@ -1324,6 +1755,214 @@ function createOrchestrator(options = {}) {
     return artifacts
   }
 
+  async function executeImplementationLoop({
+    record,
+    runDir,
+    managerBrief,
+    planMarkdown,
+    architectureMarkdown,
+    tasksJson,
+    augmentationText,
+    selectedProfiles,
+    profiles,
+  }) {
+    const workspaceDir = await ensureExecutionWorkspace(runDir)
+    const workspaceManifest = await buildWorkspaceManifestMarkdown(workspaceDir)
+    const executionState = {
+      messages: [],
+      taskExecution: [],
+      commandResults: [],
+      workspaceManifest,
+    }
+    const changedFiles = new Set()
+    const executableTasks = selectExecutableTasks(tasksJson)
+
+    await persistExecutionArtifacts(runDir, executionState)
+
+    if (executableTasks.length === 0) {
+      appendLog(record, "No executable coding tasks were selected for this run")
+      await writeRunRecord(record)
+      const implementationMarkdown = buildImplementationReportMarkdown({
+        taskExecution: executionState.taskExecution,
+        commandResults: executionState.commandResults,
+        syncedFiles: [],
+        workspaceDir,
+      })
+      await writeFile(path.join(runDir, "04_code", "implementation.md"), implementationMarkdown)
+      return {
+        implementationMarkdown,
+        workspaceDir,
+        changedFiles: [],
+      }
+    }
+
+    for (const task of executableTasks) {
+      const taskRecord = {
+        id: task.id,
+        title: task.title,
+        owner: task.owner,
+        status: "running",
+        dependsOn: Array.isArray(task.dependsOn) ? task.dependsOn : [],
+        attempts: [],
+      }
+      executionState.taskExecution.push(taskRecord)
+      task.status = "in_progress"
+      await writeFile(path.join(runDir, "03_tasks", "tasks.json"), formatJson(tasksJson))
+      appendLog(record, `Executing ${task.id}: ${task.title}`)
+      await writeRunRecord(record)
+
+      let reviewerFeedback = ""
+
+      for (let attempt = 1; attempt <= MAX_TASK_ATTEMPTS; attempt += 1) {
+        const assignmentRaw = await generateTextWithProfile(
+          profiles.manager,
+          buildTaskAssignmentPrompt({
+            userPrompt: record.prompt,
+            managerBrief,
+            task,
+            planMarkdown,
+            architectureMarkdown,
+            reviewerFeedback,
+          }),
+        )
+        const assignmentMarkdown = normalizeMarkdownArtifact(assignmentRaw, "# Task Assignment")
+        appendAgentMessage(executionState.messages, {
+          role: "manager",
+          profile: selectedProfiles.manager,
+          taskId: task.id,
+          kind: "assignment",
+          content: assignmentMarkdown,
+        })
+
+        const coderRaw = await generateTextWithProfile(
+          profiles.code,
+          buildCoderPrompt({
+            userPrompt: record.prompt,
+            task,
+            assignmentMarkdown,
+            workspaceManifest,
+            reviewerFeedback,
+            augmentationText,
+          }),
+        )
+        const coderMarkdown = normalizeMarkdownArtifact(coderRaw, "# Coder Response")
+        const coderResponse = parseCoderResponse(coderMarkdown)
+        appendAgentMessage(executionState.messages, {
+          role: "code",
+          profile: selectedProfiles.code,
+          taskId: task.id,
+          kind: "result",
+          content: coderMarkdown,
+        })
+
+        const writtenFiles = await applyWorkspaceFileWrites(workspaceDir, coderResponse.files)
+        for (const relativePath of writtenFiles) {
+          changedFiles.add(relativePath)
+        }
+
+        const commandBatch = []
+        for (const command of coderResponse.commands.slice(0, 4)) {
+          const result = await runWorkspaceCommand(workspaceDir, command)
+          const payload = {
+            taskId: task.id,
+            attempt,
+            ...result,
+          }
+          executionState.commandResults.push(payload)
+          commandBatch.push(payload)
+        }
+
+        const reviewRaw = await generateTextWithProfile(
+          profiles.review,
+          buildReviewerDecisionPrompt({
+            userPrompt: record.prompt,
+            task,
+            assignmentMarkdown,
+            coderResponse,
+            commandBatch,
+          }),
+        )
+        const reviewMarkdown = normalizeMarkdownArtifact(reviewRaw, "# Review Decision")
+        const reviewDecision = parseReviewerDecision(reviewMarkdown)
+        appendAgentMessage(executionState.messages, {
+          role: "review",
+          profile: selectedProfiles.review,
+          taskId: task.id,
+          kind: "review",
+          content: reviewMarkdown,
+        })
+
+        taskRecord.attempts.push({
+          attempt,
+          assignment: assignmentMarkdown,
+          coderSummary: coderResponse.summary,
+          writtenFiles,
+          commands: commandBatch.map((entry) => ({
+            command: entry.command,
+            status: entry.status,
+            exitCode: entry.exitCode,
+          })),
+          review: {
+            verdict: reviewDecision.verdict,
+            findings: reviewDecision.findings,
+            requiredChanges: reviewDecision.requiredChanges,
+          },
+        })
+
+        reviewerFeedback = [...reviewDecision.findings, ...reviewDecision.requiredChanges]
+          .filter((entry) => entry && entry.toLowerCase() !== "none")
+          .map((entry) => `- ${entry}`)
+          .join("\n")
+
+        await persistExecutionArtifacts(runDir, executionState)
+
+        if (reviewDecision.verdict === "approve") {
+          taskRecord.status = "completed"
+          task.status = "completed"
+          appendLog(record, `${task.id} approved after attempt ${attempt}`)
+          await writeRunRecord(record)
+          break
+        }
+
+        if (attempt === MAX_TASK_ATTEMPTS) {
+          taskRecord.status = "needs-review"
+          task.status = "blocked"
+          appendLog(record, `${task.id} still needs review after ${attempt} attempts`, "error")
+          await writeRunRecord(record)
+          break
+        }
+
+        taskRecord.status = "revising"
+        appendLog(record, `${task.id} requires another coding pass`)
+        await writeRunRecord(record)
+      }
+
+      if (taskRecord.status === "running") {
+        taskRecord.status = "completed"
+        task.status = "completed"
+      }
+
+      await writeFile(path.join(runDir, "03_tasks", "tasks.json"), formatJson(tasksJson))
+      await persistExecutionArtifacts(runDir, executionState)
+    }
+
+    const implementationMarkdown = buildImplementationReportMarkdown({
+      taskExecution: executionState.taskExecution,
+      commandResults: executionState.commandResults,
+      syncedFiles: [...changedFiles],
+      workspaceDir,
+    })
+    await writeFile(path.join(runDir, "04_code", "implementation.md"), implementationMarkdown)
+
+    return {
+      implementationMarkdown,
+      workspaceDir,
+      changedFiles: [...changedFiles],
+      taskExecution: executionState.taskExecution,
+      commandResults: executionState.commandResults,
+    }
+  }
+
   async function executeRun(runId) {
     const record = await readRunRecord(runId)
     if (!record) {
@@ -1391,25 +2030,6 @@ function createOrchestrator(options = {}) {
         completedAt: new Date().toISOString(),
       })
 
-      await updateStage(record, "implementation", {
-        status: "running",
-        profile: selectedProfiles.code,
-        startedAt: new Date().toISOString(),
-      })
-      appendLog(record, `Implementation handoff with ${selectedProfiles.code}`)
-      const implementationRaw = await generateTextWithProfile(
-        profiles.code,
-        buildImplementationPrompt(record.prompt, managerBrief, planMarkdown, architectureMarkdown, augmentationText),
-      )
-      const implementationMarkdown = fillShellCommandsFallback(
-        closeOpenCodeFence(normalizeMarkdownArtifact(implementationRaw, "# Implementation")),
-      )
-      await writeFile(path.join(runDir, "04_code", "implementation.md"), `${implementationMarkdown.trim()}\n`)
-      await updateStage(record, "implementation", {
-        status: "completed",
-        completedAt: new Date().toISOString(),
-      })
-
       await updateStage(record, "tasks", {
         status: "running",
         profile: selectedProfiles.manager,
@@ -1419,10 +2039,33 @@ function createOrchestrator(options = {}) {
       const tasksJson = buildDeterministicTasks({
         userPrompt: record.prompt,
         architectureMarkdown,
-        implementationMarkdown,
+        implementationMarkdown: "",
       })
       await writeFile(path.join(runDir, "03_tasks", "tasks.json"), formatJson(tasksJson))
       await updateStage(record, "tasks", {
+        status: "completed",
+        completedAt: new Date().toISOString(),
+      })
+
+      await updateStage(record, "implementation", {
+        status: "running",
+        profile: selectedProfiles.code,
+        startedAt: new Date().toISOString(),
+      })
+      appendLog(record, `Executing code tasks with ${selectedProfiles.code}`)
+      const implementationResult = await executeImplementationLoop({
+        record,
+        runDir,
+        managerBrief,
+        planMarkdown,
+        architectureMarkdown,
+        tasksJson,
+        augmentationText,
+        selectedProfiles,
+        profiles,
+      })
+      const implementationMarkdown = implementationResult.implementationMarkdown
+      await updateStage(record, "implementation", {
         status: "completed",
         completedAt: new Date().toISOString(),
       })
@@ -1477,6 +2120,8 @@ function createOrchestrator(options = {}) {
           summaryMarkdown,
           runRelativePath: record.runDirRelative,
           managerBrief,
+          workspaceDir: implementationResult.workspaceDir,
+          changedFiles: implementationResult.changedFiles,
         })
       }
 
