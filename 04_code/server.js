@@ -146,14 +146,20 @@ async function readStore() {
 }
 
 function writeStore(nextStore) {
-  writeQueue = writeQueue.then(() => {
-    return fs.writeFile(dataFile, JSON.stringify(nextStore, null, 2), "utf8");
-  });
+  writeQueue = writeQueue
+    .catch(() => undefined)
+    .then(() => {
+      return fs.writeFile(dataFile, JSON.stringify(nextStore, null, 2), "utf8");
+    });
 
   return writeQueue;
 }
 
 function validatePromptPayload(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { ok: false, message: "Request body must be an object." };
+  }
+
   const title = typeof payload.title === "string" ? payload.title.trim() : "";
   const content = typeof payload.content === "string" ? payload.content.trim() : "";
 
