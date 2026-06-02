@@ -3,9 +3,11 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { createOrchestrator } = require("./orchestrator");
+const { normalizePublicHttpUrl } = require("./url-safety");
 
 const app = express();
 const port = Number(process.env.PORT) || 3000;
+const host = process.env.HOST || "127.0.0.1";
 
 const appRoot = __dirname;
 const publicDir = path.join(appRoot, "public");
@@ -78,7 +80,7 @@ function normalizeDate(value) {
 
 function parseReferenceUrls(input) {
   if (Array.isArray(input)) {
-    return [...new Set(input.map((value) => String(value).trim()).filter(Boolean))];
+    return [...new Set(input.map(normalizePublicHttpUrl).filter(Boolean))];
   }
 
   if (typeof input === "string") {
@@ -86,13 +88,39 @@ function parseReferenceUrls(input) {
       ...new Set(
         input
           .split(/\r?\n|,/)
-          .map((value) => value.trim())
+          .map(normalizePublicHttpUrl)
           .filter(Boolean),
       ),
     ];
   }
 
   return [];
+}
+
+const writeApiToken = process.env.MULTI_AI_WRITE_TOKEN || process.env.MULTI_AI_API_TOKEN;
+
+function readBearerToken(request) {
+  const authorization = request.get("authorization") || "";
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  return match?.[1] || request.get("x-multi-ai-api-token") || "";
+}
+
+function requireWriteAuth(request, response) {
+  if (!writeApiToken) {
+    if (process.env.NODE_ENV === "production") {
+      response.status(403).json({ message: "MULTI_AI_WRITE_TOKEN is required for write routes in production." });
+      return false;
+    }
+
+    return true;
+  }
+
+  if (readBearerToken(request) !== writeApiToken) {
+    response.status(401).json({ message: "Unauthorized." });
+    return false;
+  }
+
+  return true;
 }
 
 function normalizePrompt(prompt) {
@@ -192,6 +220,10 @@ app.get("/api/prompts", async (_request, response, next) => {
 });
 
 app.post("/api/prompts", async (request, response, next) => {
+  if (!requireWriteAuth(request, response)) {
+    return;
+  }
+
   try {
     const validation = validatePromptPayload(request.body);
 
@@ -221,6 +253,10 @@ app.post("/api/prompts", async (request, response, next) => {
 });
 
 app.put("/api/prompts/:id", async (request, response, next) => {
+  if (!requireWriteAuth(request, response)) {
+    return;
+  }
+
   try {
     const validation = validatePromptPayload(request.body);
 
@@ -259,6 +295,10 @@ app.put("/api/prompts/:id", async (request, response, next) => {
 });
 
 app.delete("/api/prompts/:id", async (request, response, next) => {
+  if (!requireWriteAuth(request, response)) {
+    return;
+  }
+
   try {
     const store = await readStore();
     const nextPrompts = store.prompts.filter((prompt) => prompt.id !== request.params.id);
@@ -377,6 +417,10 @@ app.get("/api/orchestrator/runs/:id/events", async (request, response, next) => 
 });
 
 app.post("/api/orchestrator/runs", async (request, response, next) => {
+  if (!requireWriteAuth(request, response)) {
+    return;
+  }
+
   try {
     const prompt = typeof request.body.prompt === "string" ? request.body.prompt.trim() : "";
 
@@ -415,7 +459,7 @@ app.use((error, _request, response, _next) => {
   response.status(500).json({ message: "Something went wrong while handling the multi AI workspace." });
 });
 
-app.listen(port, async () => {
+app.listen(port, host, async () => {
   await ensureDataFile();
-  console.log(`Multi AI Orchestrator is running at http://localhost:${port}`);
+  console.log(`Multi AI Orchestrator is running at http://${host}:${port}`);
 });
