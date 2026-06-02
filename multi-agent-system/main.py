@@ -14,8 +14,6 @@ from dotenv import load_dotenv
 os.environ.setdefault("CREWAI_TRACING_ENABLED", "false")
 os.environ.setdefault("OTEL_SDK_DISABLED", "true")
 
-from orchestrator import CrewManager
-from orchestrator.crew_manager import PromptValidationError
 from utils.logger import configure_logging
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -53,6 +51,9 @@ def main() -> int:
     output_path = resolve_output_path(args.output)
     configure_logging(logging.WARNING)
     load_dotenv(PROJECT_ROOT / ".env")
+
+    from orchestrator import CrewManager
+    from orchestrator.crew_manager import PromptValidationError
 
     try:
         manager = CrewManager.from_config(PROJECT_ROOT / "config" / "models.yaml")
