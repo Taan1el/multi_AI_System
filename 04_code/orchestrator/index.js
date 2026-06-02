@@ -7,6 +7,7 @@ const { spawn } = require("node:child_process")
 const providerModule = require("../../providers")
 const { getCanonicalRole } = require("../../providers/capabilities")
 const { createSchemaValidator } = require("../../schemas/validator")
+const { normalizePublicHttpUrl, resolvePublicHttpUrl } = require("../url-safety")
 
 const DEFAULT_CONFIG = {
   runtime: {
@@ -249,7 +250,7 @@ function createOrchestrator(options = {}) {
   async function readRunIndex() {
     const config = await loadConfig()
     await ensureStorage(config)
-    const parsed = JSON.parse(await fsp.readFile(runIndexFile, "utf8"))
+    const parsed = await readJsonFileWithRetry(runIndexFile)
     return Array.isArray(parsed.runs) ? parsed.runs : []
   }
 
@@ -503,7 +504,17 @@ function createOrchestrator(options = {}) {
   }
 
   function extractUrls(input) {
-    return [...new Set(String(input || "").match(/https?:\/\/[^\s)]+/g) || [])]
+    return sanitizeReferenceUrls(String(input || "").match(/https?:\/\/[^\s)]+/g) || [])
+  }
+
+  function sanitizeReferenceUrls(urls) {
+    return [
+      ...new Set(
+        (urls || [])
+          .map(normalizePublicHttpUrl)
+          .filter(Boolean),
+      ),
+    ]
   }
 
   function cleanFetchedText(content, maxChars) {
@@ -517,6 +528,11 @@ function createOrchestrator(options = {}) {
   }
 
   async function performWebFetch(url, config) {
+    const safeUrl = await resolvePublicHttpUrl(url)
+    if (!safeUrl) {
+      return null
+    }
+
     const fetchConfig = config.features.webFetch
     if (!fetchConfig?.enabled) {
       return null
@@ -534,7 +550,7 @@ function createOrchestrator(options = {}) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url: safeUrl }),
         signal: AbortSignal.timeout(10000),
       })
 
@@ -544,7 +560,7 @@ function createOrchestrator(options = {}) {
 
       const payload = await response.json()
       return {
-        url,
+        url: safeUrl,
         title: payload.title || "",
         content: cleanFetchedText(payload.content || "", config.features.urlContext.maxCharsPerUrl || 4000),
       }
@@ -562,19 +578,25 @@ function createOrchestrator(options = {}) {
     const limitedUrls = urls.slice(0, config.features.urlContext.maxUrls || 3)
 
     for (const url of limitedUrls) {
-      const fetched = await performWebFetch(url, config)
+      const safeUrl = await resolvePublicHttpUrl(url)
+      if (!safeUrl) {
+        entries.push({ url, content: "Blocked URL context fetch: URL must resolve to a public address." })
+        continue
+      }
+
+      const fetched = await performWebFetch(safeUrl, config)
       if (fetched?.content) {
         entries.push(fetched)
         continue
       }
 
       try {
-        const response = await fetch(url, {
+        const response = await fetch(safeUrl, {
           signal: AbortSignal.timeout(10000),
           headers: { "User-Agent": "multi-ai-system/1.0" },
         })
         entries.push({
-          url,
+          url: safeUrl,
           content: cleanFetchedText(await response.text(), config.features.urlContext.maxCharsPerUrl || 4000),
         })
       } catch (error) {
@@ -1686,7 +1708,7 @@ function createOrchestrator(options = {}) {
     await ensureDir(path.join(runDir, "artifacts"))
     await writeRunRecord(record)
 
-    const referenceUrls = [...new Set([...(record.referenceUrls || []), ...extractUrls(record.prompt)])]
+    const referenceUrls = sanitizeReferenceUrls([...(record.referenceUrls || []), ...extractUrls(record.prompt)])
     const urlContextEntries = await fetchUrlContext(referenceUrls, config)
     const searchResults = record.enableWebSearch ? await performWebSearch(record.prompt, config) : []
     const augmentationText = buildAugmentationText(referenceUrls, urlContextEntries, searchResults)
@@ -1916,7 +1938,7 @@ function createOrchestrator(options = {}) {
       updatedAt: new Date().toISOString(),
       workspaceSync: typeof input.workspaceSync === "boolean" ? input.workspaceSync : Boolean(config.runtime.workspaceSync),
       roleOverrides: input.roleOverrides || {},
-      referenceUrls: Array.isArray(input.referenceUrls) ? [...new Set(input.referenceUrls)] : [],
+      referenceUrls: Array.isArray(input.referenceUrls) ? sanitizeReferenceUrls(input.referenceUrls) : [],
       enableWebSearch: Boolean(input.enableWebSearch),
       runDirRelative,
       selectedProfiles: {},
