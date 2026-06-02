@@ -37,20 +37,6 @@ const elements = {
   workspaceSyncInput: document.querySelector("#workspaceSyncInput"),
 }
 
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (character) => {
-    const replacements = {
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;",
-    }
-
-    return replacements[character] || character
-  })
-}
-
 function setStatus(message, isError = false) {
   elements.dashboardStatusMessage.textContent = message
   elements.dashboardStatusMessage.style.color = isError ? "var(--danger)" : "var(--text)"
@@ -97,17 +83,25 @@ function closeRunStream() {
   }
 }
 
+function createOption(value, label, { selected = false } = {}) {
+  const option = document.createElement("option")
+  option.value = value
+  option.textContent = label
+  option.selected = selected
+  return option
+}
+
 function renderOverrideOptions(selectElement) {
-  const options = ['<option value="">Auto from preset</option>']
+  const options = [createOption("", "Auto from preset")]
 
   for (const profile of state.config?.profiles || []) {
     const availability = profile.available ? "" : " (unavailable)"
     options.push(
-      `<option value="${escapeHtml(profile.name)}">${escapeHtml(profile.label)} | ${escapeHtml(profile.model)}${escapeHtml(availability)}</option>`,
+      createOption(profile.name, `${profile.label} | ${profile.model}${availability}`),
     )
   }
 
-  selectElement.innerHTML = options.join("")
+  selectElement.replaceChildren(...options)
 }
 
 function renderConfig() {
@@ -115,9 +109,9 @@ function renderConfig() {
     return
   }
 
-  elements.presetSelect.innerHTML = state.config.presets
-    .map((preset) => `<option value="${escapeHtml(preset.name)}">${escapeHtml(preset.label)}</option>`)
-    .join("")
+  elements.presetSelect.replaceChildren(
+    ...state.config.presets.map((preset) => createOption(preset.name, preset.label)),
+  )
 
   renderOverrideOptions(elements.managerOverrideSelect)
   renderOverrideOptions(elements.architectOverrideSelect)
@@ -139,63 +133,119 @@ function renderConfig() {
 }
 
 function statusClassName(status) {
-  return `status-${status || "idle"}`
+  const token = String(status || "idle")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+
+  return `status-${token || "idle"}`
+}
+
+function createStatusPill(status) {
+  const pill = document.createElement("span")
+  pill.className = `status-pill small ${statusClassName(status)}`
+  pill.textContent = status
+  return pill
+}
+
+function createEmptyState(label, message = "") {
+  const emptyState = document.createElement("div")
+  emptyState.className = "empty-state"
+
+  const labelElement = document.createElement("span")
+  labelElement.textContent = label
+  emptyState.append(labelElement)
+
+  if (message) {
+    const messageElement = document.createElement("p")
+    messageElement.textContent = message
+    emptyState.append(messageElement)
+  }
+
+  return emptyState
+}
+
+function createDetailRow(label, value) {
+  const row = document.createElement("p")
+
+  const labelElement = document.createElement("span")
+  labelElement.className = "detail-label"
+  labelElement.textContent = label
+
+  row.append(labelElement, document.createTextNode(value))
+  return row
 }
 
 function renderRunList() {
   elements.runCount.textContent = `${state.runs.length} run${state.runs.length === 1 ? "" : "s"}`
 
   if (state.runs.length === 0) {
-    elements.runList.innerHTML = `
-      <div class="empty-state">
-        <span>No runs yet</span>
-        <p>Start a run from the launch panel to see it here.</p>
-      </div>
-    `
+    elements.runList.replaceChildren(createEmptyState("No runs yet", "Start a run from the launch panel to see it here."))
     return
   }
 
-  elements.runList.innerHTML = state.runs
-    .map((run) => {
-      const isActive = run.id === state.selectedRunId
-      return `
-        <button class="run-item${isActive ? " active" : ""}" type="button" data-run-id="${escapeHtml(run.id)}">
-          <div class="run-item-top">
-            <strong>${escapeHtml(run.title)}</strong>
-            <span class="status-pill small ${statusClassName(run.status)}">${escapeHtml(run.status)}</span>
-          </div>
-          <p class="run-item-meta">${escapeHtml(run.preset)} | ${escapeHtml(formatDate(run.updatedAt))}</p>
-        </button>
-      `
-    })
-    .join("")
+  const fragment = document.createDocumentFragment()
+
+  state.runs.forEach((run) => {
+    const item = document.createElement("button")
+    item.className = `run-item${run.id === state.selectedRunId ? " active" : ""}`
+    item.type = "button"
+    item.dataset.runId = run.id
+
+    const top = document.createElement("div")
+    top.className = "run-item-top"
+
+    const title = document.createElement("strong")
+    title.textContent = run.title
+
+    top.append(title, createStatusPill(run.status))
+
+    const meta = document.createElement("p")
+    meta.className = "run-item-meta"
+    meta.textContent = `${run.preset} | ${formatDate(run.updatedAt)}`
+
+    item.append(top, meta)
+    fragment.append(item)
+  })
+
+  elements.runList.replaceChildren(fragment)
 }
 
 function renderStages(run) {
   const stages = Object.values(run.stageStates || {})
 
   if (stages.length === 0) {
-    elements.stageGrid.innerHTML = `<div class="empty-state"><span>No stages</span></div>`
+    elements.stageGrid.replaceChildren(createEmptyState("No stages"))
     return
   }
 
-  elements.stageGrid.innerHTML = stages
-    .map((stage) => {
-      return `
-        <article class="stage-card ${statusClassName(stage.status)}">
-          <div class="stage-card-top">
-            <strong>${escapeHtml(stage.label)}</strong>
-            <span class="status-pill small ${statusClassName(stage.status)}">${escapeHtml(stage.status)}</span>
-          </div>
-          <p><span class="detail-label">Role</span>${escapeHtml(stage.role)}</p>
-          <p><span class="detail-label">Profile</span>${escapeHtml(stage.profile || "Auto")}</p>
-          <p><span class="detail-label">Started</span>${escapeHtml(formatDate(stage.startedAt))}</p>
-          <p><span class="detail-label">Finished</span>${escapeHtml(formatDate(stage.completedAt))}</p>
-          <p><span class="detail-label">Error</span>${escapeHtml(stage.error || "None")}</p>
-        </article>
-      `
-    })
-    .join("")
+  const fragment = document.createDocumentFragment()
+
+  stages.forEach((stage) => {
+    const card = document.createElement("article")
+    card.className = `stage-card ${statusClassName(stage.status)}`
+
+    const top = document.createElement("div")
+    top.className = "stage-card-top"
+
+    const label = document.createElement("strong")
+    label.textContent = stage.label
+
+    top.append(label, createStatusPill(stage.status))
+    card.append(
+      top,
+      createDetailRow("Role", stage.role),
+      createDetailRow("Profile", stage.profile || "Auto"),
+      createDetailRow("Started", formatDate(stage.startedAt)),
+      createDetailRow("Finished", formatDate(stage.completedAt)),
+      createDetailRow("Error", stage.error || "None"),
+    )
+
+    fragment.append(card)
+  })
+
+  elements.stageGrid.replaceChildren(fragment)
 }
 
 function renderArtifacts(run) {
@@ -203,19 +253,20 @@ function renderArtifacts(run) {
   const keys = Object.keys(artifacts)
 
   if (keys.length === 0) {
-    elements.artifactSelect.innerHTML = '<option value="">Choose an artifact</option>'
+    elements.artifactSelect.replaceChildren(createOption("", "Choose an artifact"))
     elements.artifactViewer.textContent = "Artifacts will appear here when the run progresses."
     return
   }
 
   const currentKey = keys.includes(state.artifactKey) ? state.artifactKey : keys[0]
   state.artifactKey = currentKey
-  elements.artifactSelect.innerHTML = keys
-    .map((key) => {
-      const selected = key === currentKey ? "selected" : ""
-      return `<option value="${escapeHtml(key)}" ${selected}>${escapeHtml(artifacts[key].relativePath)}</option>`
-    })
-    .join("")
+  elements.artifactSelect.replaceChildren(
+    ...keys.map((key) =>
+      createOption(key, artifacts[key].relativePath, {
+        selected: key === currentKey,
+      }),
+    ),
+  )
 
   const artifact = artifacts[currentKey]
   elements.artifactViewer.textContent =
@@ -226,23 +277,36 @@ function renderLogs(run) {
   const logs = [...(run.logs || [])].reverse()
 
   if (logs.length === 0) {
-    elements.logList.innerHTML = `<div class="empty-state"><span>No logs yet</span></div>`
+    elements.logList.replaceChildren(createEmptyState("No logs yet"))
     return
   }
 
-  elements.logList.innerHTML = logs
-    .map((entry) => {
-      return `
-        <article class="log-item ${entry.level === "error" ? "error" : ""}">
-          <div class="prompt-item-top">
-            <span class="detail-label">${escapeHtml(entry.level)}</span>
-            <span class="prompt-date">${escapeHtml(formatDate(entry.timestamp))}</span>
-          </div>
-          <p>${escapeHtml(entry.message)}</p>
-        </article>
-      `
-    })
-    .join("")
+  const fragment = document.createDocumentFragment()
+
+  logs.forEach((entry) => {
+    const item = document.createElement("article")
+    item.className = `log-item ${entry.level === "error" ? "error" : ""}`
+
+    const top = document.createElement("div")
+    top.className = "prompt-item-top"
+
+    const level = document.createElement("span")
+    level.className = "detail-label"
+    level.textContent = entry.level
+
+    const timestamp = document.createElement("span")
+    timestamp.className = "prompt-date"
+    timestamp.textContent = formatDate(entry.timestamp)
+
+    const message = document.createElement("p")
+    message.textContent = entry.message
+
+    top.append(level, timestamp)
+    item.append(top, message)
+    fragment.append(item)
+  })
+
+  elements.logList.replaceChildren(fragment)
 }
 
 function renderSelectedRun() {
@@ -255,10 +319,10 @@ function renderSelectedRun() {
     elements.runPresetMeta.textContent = "-"
     elements.runProfilesMeta.textContent = "-"
     elements.runUpdatedMeta.textContent = "-"
-    elements.stageGrid.innerHTML = ""
-    elements.artifactSelect.innerHTML = '<option value="">Choose an artifact</option>'
+    elements.stageGrid.replaceChildren()
+    elements.artifactSelect.replaceChildren(createOption("", "Choose an artifact"))
     elements.artifactViewer.textContent = "No run selected."
-    elements.logList.innerHTML = ""
+    elements.logList.replaceChildren()
     return
   }
 

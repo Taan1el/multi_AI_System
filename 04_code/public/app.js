@@ -27,15 +27,6 @@ const elements = {
   updatedMeta: document.querySelector("#updatedMeta"),
 };
 
-function escapeHtml(value) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
 function formatDate(value) {
   if (!value) {
     return "Not saved yet";
@@ -87,6 +78,36 @@ function getAllTags() {
   );
 }
 
+function createTagPill(tag, { isActive = false, label = tag } = {}) {
+  const button = document.createElement("button");
+  button.className = `tag-pill${isActive ? " active" : ""}`;
+  button.type = "button";
+  button.dataset.tag = tag;
+  button.textContent = label;
+  return button;
+}
+
+function createDisplayTag(tag) {
+  const tagElement = document.createElement("span");
+  tagElement.className = "tag-pill";
+  tagElement.textContent = tag;
+  return tagElement;
+}
+
+function createEmptyState(label, message) {
+  const emptyState = document.createElement("div");
+  emptyState.className = "empty-state";
+
+  const labelElement = document.createElement("span");
+  labelElement.textContent = label;
+
+  const messageElement = document.createElement("p");
+  messageElement.textContent = message;
+
+  emptyState.append(labelElement, messageElement);
+  return emptyState;
+}
+
 function setStatus(message, isError = false) {
   elements.statusMessage.textContent = message;
   elements.statusMessage.style.color = isError ? "var(--danger)" : "var(--text)";
@@ -135,18 +156,18 @@ function populateForm(prompt) {
 function renderTagFilters() {
   const tags = getAllTags();
   const options = ["all", ...tags];
+  const fragment = document.createDocumentFragment();
 
-  elements.tagFilters.innerHTML = options
-    .map((tag) => {
-      const isActive = state.activeTag === tag;
-      const label = tag === "all" ? "All tags" : tag;
-      return `
-        <button class="tag-pill${isActive ? " active" : ""}" type="button" data-tag="${escapeHtml(tag)}">
-          ${escapeHtml(label)}
-        </button>
-      `;
-    })
-    .join("");
+  options.forEach((tag) => {
+    fragment.append(
+      createTagPill(tag, {
+        isActive: state.activeTag === tag,
+        label: tag === "all" ? "All tags" : tag,
+      }),
+    );
+  });
+
+  elements.tagFilters.replaceChildren(fragment);
 }
 
 function renderPromptList() {
@@ -154,12 +175,9 @@ function renderPromptList() {
   elements.promptCount.textContent = `${prompts.length} prompt${prompts.length === 1 ? "" : "s"}`;
 
   if (prompts.length === 0) {
-    elements.promptList.innerHTML = `
-      <div class="empty-state">
-        <span>No prompts found</span>
-        <p>Adjust the search, clear the tag filter, or create a fresh prompt.</p>
-      </div>
-    `;
+    elements.promptList.replaceChildren(
+      createEmptyState("No prompts found", "Adjust the search, clear the tag filter, or create a fresh prompt."),
+    );
     return;
   }
 
@@ -176,15 +194,12 @@ function renderPromptList() {
     item.querySelector(".prompt-title").textContent = prompt.title;
     item.querySelector(".prompt-date").textContent = formatDate(prompt.updatedAt);
     item.querySelector(".prompt-preview").textContent = prompt.content;
-    item.querySelector(".prompt-tags").innerHTML = prompt.tags
-      .map((tag) => `<span class="tag-pill">${escapeHtml(tag)}</span>`)
-      .join("");
+    item.querySelector(".prompt-tags").replaceChildren(...prompt.tags.map((tag) => createDisplayTag(tag)));
 
     fragment.append(item);
   });
 
-  elements.promptList.innerHTML = "";
-  elements.promptList.append(fragment);
+  elements.promptList.replaceChildren(fragment);
 }
 
 function render() {
